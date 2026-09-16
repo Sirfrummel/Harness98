@@ -14,3 +14,6 @@
 
 # Never transform executable bytes.
 *.exe binary
+*.EXE binary
+*.dll binary
+*.DLL binary

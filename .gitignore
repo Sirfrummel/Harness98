@@ -10,6 +10,7 @@ dist/
 
 # The verified compatibility binary is intentionally versioned.
 !curl-probe/curl.exe
+!vendor/libcurl-win98/*.dll
 
 # Probe output
 MODELS.JSN

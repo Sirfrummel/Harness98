@@ -47,7 +47,7 @@ namespace Win98Ai
                     case '\r': output.Append("\\r"); break;
                     case '\t': output.Append("\\t"); break;
                     default:
-                        if (ch < 32)
+                        if (ch < 32 || ch > 126)
                         {
                             output.Append("\\u");
                             output.Append(((int)ch).ToString("x4"));

@@ -36,3 +36,9 @@ components before redistributing this binary beyond this restoration project.
 This CA bundle is runtime data used by curl to authenticate HTTPS servers. It
 will need periodic replacement if the target sites move to certificate chains
 that the bundled roots cannot validate.
+
+## LibCurl.NET Windows 98 DLL set
+
+Version 2 uses the five matched DLLs preserved under `vendor/libcurl-win98/`.
+Their source, individual hashes, dependency purpose, and redistribution caveat
+are recorded in that directory's `README.md`.

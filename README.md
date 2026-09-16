@@ -37,6 +37,9 @@ choosing the larger harness architecture.
 - `src/` — modular source for the version 1 interactive chat program
 - `BUILD.BAT` and `RUN.BAT` — Windows 98 build and launch scripts
 - `V1README.TXT` — target-machine instructions and command reference
+- `BUILD2.BAT` and `RUN2.BAT` — LibCurl.NET transport benchmark scripts
+- `V2README.TXT` — version 2 dependency and test instructions
+- `vendor/libcurl-win98/` — matched managed/native DLL dependency set
 - `probe/` — source and batch file for the original .NET connectivity probe
 - `curl-probe/` — known-working curl/OpenSSL TLS 1.2 connectivity probe
 - `THIRD_PARTY.md` — provenance and hashes for bundled third-party files
@@ -72,3 +75,17 @@ Windows 98 validation of the complete version 1 program is the remaining step.
 
 Streaming output, saved conversations, command execution, and file editing are
 intentionally deferred to later milestones.
+
+## Version 2 transport benchmark
+
+Version 2 holds the user interface, OpenRouter client, JSON handling, and
+conversation behavior constant while replacing the `CURL.EXE` child process
+with an in-process LibCurl.NET transport. It has no automatic process-transport
+fallback and prints its active transport at startup, making physical Windows 98
+results unambiguous.
+
+The local x86 compatibility test completed the same parity sequence as version
+1: model retrieval, an authenticated first response, and a second response that
+retained the first turn. Unlike version 1, the DLL transport created no request
+or response files. Validation on the physical Windows 98 computer remains the
+decisive benchmark.

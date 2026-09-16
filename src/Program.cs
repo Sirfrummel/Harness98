@@ -7,15 +7,19 @@ namespace Win98Ai
     {
         public static int Main(string[] args)
         {
+#if LIBCURL_DLL
+            Console.WriteLine("Windows 98 AI Harness v2 DLL benchmark");
+#else
             Console.WriteLine("Windows 98 AI Harness v1");
+#endif
             Console.WriteLine("=========================");
             Console.WriteLine();
 
             string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+            IHttpTransport transport = null;
             try
             {
-                CurlTransport transport = new CurlTransport(baseDirectory);
-                transport.ValidateDependencies();
+                transport = CreateTransport(baseDirectory);
 
                 Settings settings = new Settings(baseDirectory);
                 string apiKey = settings.LoadOrCreateKey();
@@ -42,6 +46,29 @@ namespace Win98Ai
                 Console.WriteLine("FATAL ERROR: " + ex.Message);
                 return 1;
             }
+            finally
+            {
+                IDisposable disposable = transport as IDisposable;
+                if (disposable != null)
+                {
+                    disposable.Dispose();
+                }
+            }
+        }
+
+        private static IHttpTransport CreateTransport(string baseDirectory)
+        {
+#if LIBCURL_DLL
+            LibCurlTransport transport = new LibCurlTransport(baseDirectory);
+            transport.ValidateDependencies();
+            Console.WriteLine("Transport: LibCurl.NET DLL");
+            return transport;
+#else
+            CurlTransport transport = new CurlTransport(baseDirectory);
+            transport.ValidateDependencies();
+            Console.WriteLine("Transport: CURL.EXE process");
+            return transport;
+#endif
         }
 
         private static ArrayList LoadModels(OpenRouterClient client,
