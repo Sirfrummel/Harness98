@@ -1,0 +1,15 @@
+* text=auto
+
+# Files copied directly to Windows 98 retain DOS line endings.
+*.bat text eol=crlf
+*.cs text eol=crlf
+curl-probe/*.TXT text eol=crlf
+
+# Repository documentation and certificate data use LF internally.
+*.md text eol=lf
+*.pem text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+
+# Never transform executable bytes.
+*.exe binary

@@ -1,0 +1,30 @@
+# Compiled output
+*.exe
+*.dll
+*.pdb
+bin/
+obj/
+
+# The verified compatibility binary is intentionally versioned.
+!curl-probe/curl.exe
+
+# Probe output
+MODELS.JSN
+HEADERS.TXT
+models.json
+headers.txt
+*.log
+
+# Credentials and local configuration
+.env
+.env.*
+*.key
+secrets/
+credentials/
+config.local.*
+
+# Editor and OS files
+*.suo
+*.user
+.DS_Store
+Thumbs.db
