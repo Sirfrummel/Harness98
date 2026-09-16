@@ -34,6 +34,9 @@ choosing the larger harness architecture.
 
 ## Repository layout
 
+- `src/` — modular source for the version 1 interactive chat program
+- `BUILD.BAT` and `RUN.BAT` — Windows 98 build and launch scripts
+- `V1README.TXT` — target-machine instructions and command reference
 - `probe/` — source and batch file for the original .NET connectivity probe
 - `curl-probe/` — known-working curl/OpenSSL TLS 1.2 connectivity probe
 - `THIRD_PARTY.md` — provenance and hashes for bundled third-party files
@@ -55,8 +58,12 @@ Never commit an OpenRouter API key or another credential. Runtime credentials
 will be kept outside version control. Third-party executables are recorded with
 their source URLs and SHA-256 hashes in `THIRD_PARTY.md`.
 
-## Next milestone
+## Version 1 scope
 
-Before implementation continues, decide how the managed harness will invoke the
-working TLS transport and how requests, responses, command execution, and file
-editing will be bounded on Windows 98.
+Version 1 uses a modular .NET 2.0 console application with the verified curl
+binary as its HTTPS transport. It provides local API-key storage, model-list
+filtering and selection, a multi-turn in-memory conversation, and commands to
+clear history, switch models, or replace the key.
+
+Streaming output, saved conversations, command execution, and file editing are
+intentionally deferred to later milestones.

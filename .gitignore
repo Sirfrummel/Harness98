@@ -1,9 +1,12 @@
 # Compiled output
 *.exe
+*.EXE
 *.dll
+*.DLL
 *.pdb
 bin/
 obj/
+dist/
 
 # The verified compatibility binary is intentionally versioned.
 !curl-probe/curl.exe
@@ -13,6 +16,8 @@ MODELS.JSN
 HEADERS.TXT
 models.json
 headers.txt
+REQ.JSN
+RESP.JSN
 *.log
 
 # Credentials and local configuration
@@ -22,6 +27,7 @@ headers.txt
 secrets/
 credentials/
 config.local.*
+OPENROUT.KEY
 
 # Editor and OS files
 *.suo
