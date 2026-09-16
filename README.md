@@ -65,5 +65,10 @@ binary as its HTTPS transport. It provides local API-key storage, model-list
 filtering and selection, a multi-turn in-memory conversation, and commands to
 clear history, switch models, or replace the key.
 
+An authenticated end-to-end test using OpenRouter's free-model router completed
+successfully: the first response matched the requested text, and a second turn
+correctly recalled that response from the submitted message history. Physical
+Windows 98 validation of the complete version 1 program is the remaining step.
+
 Streaming output, saved conversations, command execution, and file editing are
 intentionally deferred to later milestones.
