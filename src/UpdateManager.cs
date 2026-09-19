@@ -7,7 +7,7 @@ namespace Harness98
 {
     public sealed class UpdateManager
     {
-        public const string CurrentVersion = "3.0.0";
+        public const string CurrentVersion = "3.1.0";
         public const string DefaultServer =
             @"\\192.168.50.170\retro\to-transfer\harness98-updates\stable";
 
@@ -63,32 +63,9 @@ namespace Harness98
 
         public string LoadServer()
         {
-            string config = Path.Combine(baseDirectory, "HARNESS98.CFG");
-            if (!File.Exists(config))
-            {
-                WriteAscii(config, "UPDATE_SERVER=" + DefaultServer + "\r\n");
-                return DefaultServer;
-            }
-
-            string[] lines = File.ReadAllLines(config, Encoding.ASCII);
-            for (int i = 0; i < lines.Length; i++)
-            {
-                string line = lines[i].Trim();
-                if (line.Length == 0 || line[0] == '#' || line[0] == ';') continue;
-                int equals = line.IndexOf('=');
-                if (equals <= 0) continue;
-                string key = line.Substring(0, equals).Trim();
-                if (String.Compare(key, "UPDATE_SERVER", true) == 0)
-                {
-                    string value = line.Substring(equals + 1).Trim();
-                    if (value.Length == 0)
-                    {
-                        throw new FormatException("UPDATE_SERVER is empty in HARNESS98.CFG.");
-                    }
-                    return value;
-                }
-            }
-            throw new FormatException("HARNESS98.CFG has no UPDATE_SERVER setting.");
+            AppConfiguration configuration = new AppConfiguration(baseDirectory);
+            configuration.Load();
+            return configuration.UpdateServer;
         }
 
         private static void RecreateDirectory(string path)

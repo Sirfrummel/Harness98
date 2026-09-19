@@ -42,6 +42,9 @@ public sealed class Tests
         FakeTransport transport = new FakeTransport();
         transport.GetResponse = Ok("{\"data\":[" +
             "{\"id\":\"z/model\",\"name\":\"Zulu\",\"context_length\":8192," +
+            "\"description\":\"Multimodal\",\"architecture\":{" +
+            "\"input_modalities\":[\"text\",\"image\"]," +
+            "\"output_modalities\":[\"text\"]}," +
             "\"pricing\":{\"prompt\":\"0.1\",\"completion\":\"0.2\"}}," +
             "{\"id\":\"a/model\",\"name\":\"Alpha\",\"context_length\":4096}]}" );
         OpenRouterClient client = new OpenRouterClient(transport);
@@ -49,6 +52,10 @@ public sealed class Tests
         AssertEqual("2", models.Count.ToString());
         AssertEqual("a/model", ((ModelInfo)models[0]).Id);
         AssertEqual("z/model", ((ModelInfo)models[1]).Id);
+        if (!((ModelInfo)models[1]).AcceptsImages)
+            throw new Exception("Image-input capability was not parsed.");
+        if (((ModelInfo)models[1]).GeneratesImages)
+            throw new Exception("Image-output capability was parsed incorrectly.");
     }
 
     private static void TestChat()
@@ -154,7 +161,7 @@ public sealed class Tests
             File.WriteAllText(payload, "test update payload", System.Text.Encoding.ASCII);
             string hash = UpdateManifest.HashFile(payload);
             File.WriteAllText(Path.Combine(server, "MANIFEST.INI"),
-                "VERSION=3.0.1\r\nFILE=HARNESS98.EXE|" + hash + "\r\n",
+                "VERSION=3.1.1\r\nFILE=HARNESS98.EXE|" + hash + "\r\n",
                 System.Text.Encoding.ASCII);
             File.WriteAllText(Path.Combine(application, "HARNESS98.CFG"),
                 "UPDATE_SERVER=" + server + "\r\n", System.Text.Encoding.ASCII);
@@ -194,7 +201,7 @@ public sealed class Tests
             File.WriteAllText(staged, "new payload", System.Text.Encoding.ASCII);
             string hash = UpdateManifest.HashFile(staged);
             string manifestPath = Path.Combine(stage, "MANIFEST.INI");
-            File.WriteAllText(manifestPath, "VERSION=3.0.1\r\n" +
+            File.WriteAllText(manifestPath, "VERSION=3.1.1\r\n" +
                 "FILE=HARNESS98.EXE|" + hash + "\r\n",
                 System.Text.Encoding.ASCII);
             UpdateManifest manifest = UpdateManifest.Load(manifestPath);

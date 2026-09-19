@@ -45,6 +45,15 @@ namespace Harness98
                 model.Id = id;
                 model.Name = name == null || name.Length == 0 ? id : name;
                 model.ContextLength = Json.GetInt64(item, "context_length");
+                model.Description = Json.GetString(item, "description");
+
+                Hashtable architecture = Json.AsObject(item["architecture"]);
+                model.AcceptsImages = ArrayContains(
+                    Json.AsArray(architecture == null ? null :
+                    architecture["input_modalities"]), "image");
+                model.GeneratesImages = ArrayContains(
+                    Json.AsArray(architecture == null ? null :
+                    architecture["output_modalities"]), "image");
 
                 Hashtable pricing = Json.AsObject(item["pricing"]);
                 model.PromptPrice = Json.GetString(pricing, "prompt");
@@ -81,6 +90,17 @@ namespace Harness98
             }
 
             return content;
+        }
+
+        private static bool ArrayContains(ArrayList values, string expected)
+        {
+            if (values == null) return false;
+            for (int i = 0; i < values.Count; i++)
+            {
+                string value = values[i] as string;
+                if (String.Compare(value, expected, true) == 0) return true;
+            }
+            return false;
         }
 
         private static string BuildChatRequest(string modelId, IList messages)

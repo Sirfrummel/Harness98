@@ -10,6 +10,14 @@ namespace Harness98
         public long ContextLength;
         public string PromptPrice;
         public string CompletionPrice;
+        public string Description;
+        public bool AcceptsImages;
+        public bool GeneratesImages;
+
+        public override string ToString()
+        {
+            return Name;
+        }
     }
 
     public sealed class ChatMessage
@@ -67,6 +75,13 @@ namespace Harness98
     {
         public int StatusCode;
         public string Body;
+    }
+
+    public sealed class ChatResult
+    {
+        public string Answer;
+        public string GeneratedTitle;
+        public string Warning;
     }
 
     public sealed class ModelNameComparer : IComparer

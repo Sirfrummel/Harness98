@@ -8,7 +8,7 @@ namespace Harness98
         public static int Main(string[] args)
         {
 #if HARNESS98_V3
-            Console.WriteLine("Harness98 v3");
+            Console.WriteLine("Harness98 3.1.0 CLI");
 #elif LIBCURL_DLL
             Console.WriteLine("Harness98 v2 DLL benchmark");
 #else
@@ -18,31 +18,29 @@ namespace Harness98
             Console.WriteLine();
 
             string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
-            IHttpTransport transport = null;
+            HarnessCore core = null;
             try
             {
-                transport = CreateTransport(baseDirectory);
-
-                Settings settings = new Settings(baseDirectory);
+                core = new HarnessCore(baseDirectory);
+                Settings settings = core.Credentials;
                 string apiKey = settings.LoadOrCreateKey();
-                OpenRouterClient client = new OpenRouterClient(transport);
+                core.Connect(apiKey);
+                Console.WriteLine("Transport: LibCurl.NET DLL");
 
-                ArrayList models = LoadModels(client, settings, ref apiKey);
+                ArrayList models = LoadModels(core, settings, ref apiKey);
                 if (models == null)
                 {
                     return 1;
                 }
 
-                ConversationStore store = new ConversationStore(baseDirectory);
+                ConversationStore store = core.Conversations;
                 ChatSession session = SelectInitialSession(models, store);
                 if (session == null)
                 {
                     return 0;
                 }
 
-                UpdateManager updates = new UpdateManager(baseDirectory);
-                RunChat(client, settings, models, store, updates, ref apiKey,
-                    session);
+                RunChat(core, settings, models, ref apiKey, session);
                 return 0;
             }
             catch (Exception ex)
@@ -53,30 +51,11 @@ namespace Harness98
             }
             finally
             {
-                IDisposable disposable = transport as IDisposable;
-                if (disposable != null)
-                {
-                    disposable.Dispose();
-                }
+                if (core != null) core.Dispose();
             }
         }
 
-        private static IHttpTransport CreateTransport(string baseDirectory)
-        {
-#if LIBCURL_DLL
-            LibCurlTransport transport = new LibCurlTransport(baseDirectory);
-            transport.ValidateDependencies();
-            Console.WriteLine("Transport: LibCurl.NET DLL");
-            return transport;
-#else
-            CurlTransport transport = new CurlTransport(baseDirectory);
-            transport.ValidateDependencies();
-            Console.WriteLine("Transport: CURL.EXE process");
-            return transport;
-#endif
-        }
-
-        private static ArrayList LoadModels(OpenRouterClient client,
+        private static ArrayList LoadModels(HarnessCore core,
             Settings settings, ref string apiKey)
         {
             while (true)
@@ -85,7 +64,7 @@ namespace Harness98
                 {
                     Console.WriteLine();
                     Console.WriteLine("Loading the OpenRouter model list...");
-                    ArrayList models = client.GetModels(apiKey);
+                    ArrayList models = core.LoadModels();
                     Console.WriteLine("Loaded " + models.Count.ToString() + " models.");
                     return models;
                 }
@@ -102,6 +81,7 @@ namespace Harness98
                     if (String.Compare(input.Trim(), "k", true) == 0)
                     {
                         apiKey = settings.ReplaceKey();
+                        core.ApiKey = apiKey;
                     }
                 }
             }
@@ -200,10 +180,10 @@ namespace Harness98
             return null;
         }
 
-        private static void RunChat(OpenRouterClient client, Settings settings,
-            ArrayList models, ConversationStore store, UpdateManager updates,
-            ref string apiKey, ChatSession session)
+        private static void RunChat(HarnessCore core, Settings settings,
+            ArrayList models, ref string apiKey, ChatSession session)
         {
+            ConversationStore store = core.Conversations;
             Console.WriteLine();
             ShowActiveSession(session);
             ConsoleUi.ShowChatHelp();
@@ -306,6 +286,7 @@ namespace Harness98
                 if (String.Compare(input, "/key", true) == 0)
                 {
                     apiKey = settings.ReplaceKey();
+                    core.ApiKey = apiKey;
                     Console.WriteLine("The new key will be used for the next request.");
                     continue;
                 }
@@ -314,7 +295,7 @@ namespace Harness98
                     try
                     {
                         Console.WriteLine("Checking for updates...");
-                        Console.WriteLine(updates.CheckAndStage());
+                        Console.WriteLine(core.Updates.CheckAndStage());
                     }
                     catch (Exception ex)
                     {
@@ -328,22 +309,21 @@ namespace Harness98
                     continue;
                 }
 
-                session.Conversation.Add("user", input);
                 try
                 {
                     Console.WriteLine();
                     Console.WriteLine("Waiting for " + session.Model.Name + "...");
-                    string answer = client.SendChat(apiKey, session.Model.Id,
-                        session.Conversation.Messages);
-                    session.Conversation.Add("assistant", answer);
-                    session.Conversation.ModelId = session.Model.Id;
-                    TrySave(store, session.Conversation);
+                    ChatResult result = core.SendMessage(session.Conversation,
+                        session.Model, input);
                     Console.WriteLine();
-                    Console.WriteLine("Assistant> " + answer);
+                    Console.WriteLine("Assistant> " + result.Answer);
+                    if (result.GeneratedTitle != null)
+                        Console.WriteLine("Title> " + result.GeneratedTitle);
+                    if (result.Warning != null)
+                        Console.WriteLine("WARNING: " + result.Warning);
                 }
                 catch (Exception ex)
                 {
-                    session.Conversation.RemoveLast();
                     Console.WriteLine();
                     Console.WriteLine("REQUEST FAILED: " + ex.Message);
                     Console.WriteLine("Your message was not added to the history.");

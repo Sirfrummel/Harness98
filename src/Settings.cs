@@ -17,14 +17,18 @@ namespace Harness98
 
         public string LoadOrCreateKey()
         {
+            string existing = LoadKey();
+            if (existing != null) return existing;
+
+            return PromptAndSaveKey();
+        }
+
+        public string LoadKey()
+        {
             if (File.Exists(keyPath))
             {
                 string saved = ReadKeyFile(keyPath);
-                if (saved.Length > 0)
-                {
-                    Console.WriteLine("Loaded the saved OpenRouter key.");
-                    return saved;
-                }
+                if (saved.Length > 0) return saved;
             }
 
             if (File.Exists(legacyKeyPath))
@@ -32,13 +36,20 @@ namespace Harness98
                 string legacy = ReadKeyFile(legacyKeyPath);
                 if (legacy.Length > 0)
                 {
-                    WriteKeyFile(legacy);
-                    Console.WriteLine("Migrated the saved key to HARNESS98.KEY.");
+                    SaveKey(legacy);
                     return legacy;
                 }
             }
+            return null;
+        }
 
-            return PromptAndSaveKey();
+        public void SaveKey(string key)
+        {
+            if (key == null || key.Trim().Length == 0)
+            {
+                throw new ApplicationException("The OpenRouter key cannot be empty.");
+            }
+            WriteKeyFile(key.Trim());
         }
 
         public string ReplaceKey()
@@ -62,7 +73,7 @@ namespace Harness98
                 throw new ApplicationException("No API key was entered.");
             }
 
-            WriteKeyFile(key);
+            SaveKey(key);
 
             Console.WriteLine("Key saved locally.");
             return key;
