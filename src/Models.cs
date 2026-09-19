@@ -28,6 +28,12 @@ namespace Harness98
     {
         private readonly ArrayList messages = new ArrayList();
 
+        public string Id;
+        public string Title;
+        public string ModelId;
+        public DateTime CreatedUtc;
+        public DateTime UpdatedUtc;
+
         public IList Messages
         {
             get { return messages; }
@@ -73,6 +79,22 @@ namespace Harness98
             if (byName != 0)
             {
                 return byName;
+            }
+
+            return String.Compare(a.Id, b.Id, true);
+        }
+    }
+
+    public sealed class ConversationUpdatedComparer : IComparer
+    {
+        public int Compare(object left, object right)
+        {
+            Conversation a = (Conversation)left;
+            Conversation b = (Conversation)right;
+            int byDate = DateTime.Compare(b.UpdatedUtc, a.UpdatedUtc);
+            if (byDate != 0)
+            {
+                return byDate;
             }
 
             return String.Compare(a.Id, b.Id, true);

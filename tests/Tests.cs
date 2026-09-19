@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.IO;
 using Harness98;
 
 public sealed class Tests
@@ -13,6 +14,7 @@ public sealed class Tests
         Run("Chat history serialization", TestChat);
         Run("Content-part response", TestContentParts);
         Run("API error message", TestApiError);
+        Run("Saved conversations", TestSavedConversations);
 
         Console.WriteLine();
         if (failures == 0)
@@ -100,6 +102,39 @@ public sealed class Tests
             {
                 throw;
             }
+        }
+    }
+
+    private static void TestSavedConversations()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "Harness98Tests-" +
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            ConversationStore store = new ConversationStore(root);
+            Conversation first = store.Create("provider/first-model");
+            first.Add("user", "A saved question with a snowman \u2603");
+            first.Add("assistant", "A saved answer");
+            store.Save(first);
+
+            Conversation loaded = store.Load(first.Id.ToLower());
+            AssertEqual("C000001", loaded.Id);
+            AssertEqual("provider/first-model", loaded.ModelId);
+            AssertEqual("2", loaded.Count.ToString());
+            AssertEqual("A saved question with a snowman \u2603",
+                ((ChatMessage)loaded.Messages[0]).Content);
+            AssertEqual("A saved question with a snowman \u2603", loaded.Title);
+
+            Conversation second = store.Create("provider/second-model");
+            store.Save(second);
+            AssertEqual("C000002", second.Id);
+            AssertEqual("2", store.List().Count.ToString());
+            AssertEqual("C000002", store.MostRecent().Id);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, true);
         }
     }
 

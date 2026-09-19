@@ -76,11 +76,76 @@ namespace Harness98
         public static void ShowChatHelp()
         {
             Console.WriteLine("Commands:");
-            Console.WriteLine("  /help   Show this command list");
-            Console.WriteLine("  /clear  Clear the conversation history");
-            Console.WriteLine("  /model  Choose a different model");
-            Console.WriteLine("  /key    Replace the saved OpenRouter key");
-            Console.WriteLine("  /exit   Exit the program");
+            Console.WriteLine("  /new         Start a new conversation");
+            Console.WriteLine("  /continue    Resume the most recently updated conversation");
+            Console.WriteLine("  /resume      Choose from the saved conversation list");
+            Console.WriteLine("  /resume ID   Resume a conversation such as C000001");
+            Console.WriteLine("  /clear       Preserve this chat and start an empty one");
+            Console.WriteLine("  /model       Choose a different model");
+            Console.WriteLine("  /key         Replace the saved OpenRouter key");
+            Console.WriteLine("  /help        Show this command list");
+            Console.WriteLine("  /exit        Exit the program");
+        }
+
+        public static Conversation SelectConversation(ArrayList conversations)
+        {
+            if (conversations == null || conversations.Count == 0)
+            {
+                Console.WriteLine("No saved conversations were found.");
+                return null;
+            }
+
+            int page = 0;
+            int pageCount = (conversations.Count + PageSize - 1) / PageSize;
+            while (true)
+            {
+                Console.WriteLine();
+                Console.WriteLine("Saved conversations");
+                Console.WriteLine("-------------------");
+                Console.WriteLine("Page " + (page + 1).ToString() + " of " +
+                    pageCount.ToString());
+                Console.WriteLine();
+
+                int start = page * PageSize;
+                int shown = Math.Min(PageSize, conversations.Count - start);
+                for (int i = 0; i < shown; i++)
+                {
+                    Conversation conversation =
+                        (Conversation)conversations[start + i];
+                    Console.WriteLine((i + 1).ToString() + ") " + conversation.Id +
+                        "  " + conversation.UpdatedUtc.ToLocalTime().ToString(
+                            "yyyy-MM-dd HH:mm"));
+                    Console.WriteLine("   " + conversation.Title);
+                    Console.WriteLine("   " + conversation.ModelId + "  (" +
+                        conversation.Count.ToString() + " messages)");
+                }
+
+                Console.WriteLine();
+                Console.Write("Enter a number, N/P for pages, or Q to cancel: ");
+                string input = Console.ReadLine();
+                if (input == null || String.Compare(input.Trim(), "q", true) == 0)
+                {
+                    return null;
+                }
+                input = input.Trim();
+                if (String.Compare(input, "n", true) == 0)
+                {
+                    if (page + 1 < pageCount) page++;
+                    continue;
+                }
+                if (String.Compare(input, "p", true) == 0)
+                {
+                    if (page > 0) page--;
+                    continue;
+                }
+
+                int selection;
+                if (Int32.TryParse(input, out selection) && selection >= 1 &&
+                    selection <= shown)
+                {
+                    return (Conversation)conversations[start + selection - 1];
+                }
+            }
         }
 
         private static ArrayList FilterModels(IList models, string filter)
