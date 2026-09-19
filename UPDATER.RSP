@@ -1,0 +1,7 @@
+/nologo
+/target:exe
+/platform:x86
+/optimize+
+/out:HARNESS98-UPDATER.EXE
+UPDATER\UPDATER.CS
+SRC\UPDATEMANIFEST.CS

@@ -1,0 +1,9 @@
+/nologo
+/target:exe
+/platform:x86
+/optimize+
+/define:LIBCURL_DLL;HARNESS98_V3
+/main:Harness98.Program
+/reference:LibCurlNet.dll
+/out:H98CLI.EXE
+SRC\*.CS

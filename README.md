@@ -42,6 +42,7 @@ choosing the larger harness architecture.
 - `BUILD3.BAT`, `RUN3.BAT`, and `V3README.TXT` — Harness98 v3 build,
   update-aware launcher, and target-machine instructions
 - `updater/` — the small restart-time update installer
+- `gui/` — Windows Forms frontend for Harness98 3.1
 - `gui-probe/` — standalone Windows Forms compatibility probe for the 3.1 line
 - `vendor/libcurl-win98/` — matched managed/native DLL dependency set
 - `probe/` — source and batch file for the original .NET connectivity probe
@@ -112,5 +113,15 @@ update manifest.
 Harness98 uses `major.minor.patch` version numbers. During rapid development,
 substantial experiments and feature groups normally advance the minor version;
 compatible fixes advance the patch version. Major versions are reserved for a
-fundamental change to the program or its compatibility contract. The current
-CLI release is 3.0.0, and the Windows Forms work is the 3.1 line.
+fundamental change to the program or its compatibility contract. The 3.0.0
+release established the persistent CLI and updater. Version 3.1.0 adds a
+Windows Forms frontend while retaining the CLI over a shared application core.
+
+## Harness98 version 3.1
+
+`HARNESS98.EXE` is the graphical frontend and `H98CLI.EXE` is the command-line
+frontend. They share the OpenRouter client, model metadata, conversation store,
+configuration, update service, and send/save behavior through `HarnessCore`.
+The GUI adds conversation management, a reusable model picker with multimodal
+capability filters, background requests, and settings for credentials, updates,
+and optional model-generated conversation titles.
