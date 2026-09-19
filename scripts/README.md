@@ -1,0 +1,26 @@
+# Release automation
+
+Run `scripts/release.sh` from anywhere to build and test all Harness98
+executables, recreate the versioned fallback package, generate the stable update
+manifest, and verify every SHA-256 hash.
+
+The version comes from `src/VersionInfo.cs`. The release script never packages
+or publishes `HARNESS98.KEY`, `HARNESS98.CFG` from an installed machine,
+conversation data, staged updates, or backups. The repository's default
+`HARNESS98.CFG` template is included only in the fresh-install package and is
+protected from updater manifests.
+
+The normal local command does not touch the network:
+
+```sh
+scripts/release.sh
+```
+
+After reviewing the generated package and manifest, publish explicitly:
+
+```sh
+scripts/release.sh --publish
+```
+
+Set `HARNESS98_PUBLISH_URL` to override the default private LAN destination, or
+`WINE_CSC` to override the .NET 2.0 compiler path used through Wine.

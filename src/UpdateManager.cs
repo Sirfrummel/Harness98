@@ -7,7 +7,7 @@ namespace Harness98
 {
     public sealed class UpdateManager
     {
-        public const string CurrentVersion = "3.1.2";
+        public const string CurrentVersion = VersionInfo.Current;
         public const string DefaultServer =
             @"\\192.168.50.170\retro\to-transfer\harness98-updates\stable";
 

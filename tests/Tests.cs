@@ -166,7 +166,8 @@ public sealed class Tests
             File.WriteAllText(payload, "test update payload", System.Text.Encoding.ASCII);
             string hash = UpdateManifest.HashFile(payload);
             File.WriteAllText(Path.Combine(server, "MANIFEST.INI"),
-                "VERSION=3.1.3\r\nFILE=H98GUI.EXE|" + hash + "\r\n",
+                "VERSION=" + NextPatchVersion() + "\r\nFILE=H98GUI.EXE|" +
+                hash + "\r\n",
                 System.Text.Encoding.ASCII);
             File.WriteAllText(Path.Combine(application, "HARNESS98.CFG"),
                 "UPDATE_SERVER=" + server + "\r\n", System.Text.Encoding.ASCII);
@@ -206,7 +207,8 @@ public sealed class Tests
             File.WriteAllText(staged, "new payload", System.Text.Encoding.ASCII);
             string hash = UpdateManifest.HashFile(staged);
             string manifestPath = Path.Combine(stage, "MANIFEST.INI");
-            File.WriteAllText(manifestPath, "VERSION=3.1.3\r\n" +
+            File.WriteAllText(manifestPath, "VERSION=" + NextPatchVersion() +
+                "\r\n" +
                 "FILE=H98GUI.EXE|" + hash + "\r\n",
                 System.Text.Encoding.ASCII);
             UpdateManifest manifest = UpdateManifest.Load(manifestPath);
@@ -230,6 +232,13 @@ public sealed class Tests
         result.StatusCode = 200;
         result.Body = body;
         return result;
+    }
+
+    private static string NextPatchVersion()
+    {
+        Version current = new Version(VersionInfo.Current);
+        return current.Major.ToString() + "." + current.Minor.ToString() + "." +
+            (current.Build + 1).ToString();
     }
 
     private static void Run(string name, TestMethod test)

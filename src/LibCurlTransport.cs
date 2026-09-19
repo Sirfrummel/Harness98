@@ -114,7 +114,8 @@ namespace Harness98
                 Set(easy, CURLoption.CURLOPT_FOLLOWLOCATION, 1L);
                 Set(easy, CURLoption.CURLOPT_SSL_VERIFYPEER, true);
                 Set(easy, CURLoption.CURLOPT_SSL_VERIFYHOST, 2L);
-                Set(easy, CURLoption.CURLOPT_USERAGENT, "Harness98/2.0");
+                Set(easy, CURLoption.CURLOPT_USERAGENT,
+                    "Harness98/" + VersionInfo.Current);
 
                 if (method == "POST")
                 {

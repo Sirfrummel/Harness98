@@ -44,6 +44,8 @@ choosing the larger harness architecture.
 - `updater/` — the small restart-time update installer
 - `gui/` — Windows Forms frontend for Harness98 3.1
 - `gui-probe/` — standalone Windows Forms compatibility probe for the 3.1 line
+- `scripts/release.sh` — build, test, package, manifest, verification, and
+  explicit publishing automation
 - `vendor/libcurl-win98/` — matched managed/native DLL dependency set
 - `probe/` — source and batch file for the original .NET connectivity probe
 - `curl-probe/` — known-working curl/OpenSSL TLS 1.2 connectivity probe
@@ -135,3 +137,11 @@ the same desktop shortcut to apply staged updates before opening the GUI. Empty
 conversations remain transient and are not added to saved history.
 Model lists preserve the ordering returned by OpenRouter rather than sorting
 alphabetically.
+
+## Release process
+
+The application version has one source of truth in `src/VersionInfo.cs`.
+`scripts/release.sh` builds every executable with the .NET 2.0 compiler, runs
+the compatibility suite, assembles a clean credential-free package, generates
+and verifies the update manifest, and stops before publishing. Passing
+`--publish` explicitly uploads the stable channel and fallback package.

@@ -1,5 +1,5 @@
-HARNESS98 3.1.2 - GUI, CLI, AND LAUNCHER
-============================
+HARNESS98 - GUI, CLI, AND LAUNCHER
+=================================
 
 HARNESS98.EXE is now a permanent launcher.  It automatically applies a staged
 update before starting H98GUI.EXE.  A desktop shortcut can safely point to
@@ -20,7 +20,7 @@ GUI FEATURES
 - Update checks under the Tools menu
 
 The capability filters describe models advertised by OpenRouter.  Harness98
-3.1.2 still sends text messages only; image attachment and image response
+The current build still sends text messages only; image attachment and response
 handling are future harness features.
 
 AUTOMATIC TITLES
