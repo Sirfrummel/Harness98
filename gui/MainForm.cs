@@ -427,7 +427,7 @@ namespace Harness98.Gui
                 }
                 else if (message.Role == "assistant")
                 {
-                    rtf.Append("\\pard\\li220\\ri100\\sb80\\sa180");
+                    rtf.Append("\\pard\\li0\\ri0\\sb80\\sa180");
                     rtf.Append("\\brdrt\\brdrs\\brdrw10\\brdrcf2");
                     rtf.Append("\\brdrl\\brdrs\\brdrw10\\brdrcf2");
                     rtf.Append("\\brdrb\\brdrs\\brdrw10\\brdrcf2");
