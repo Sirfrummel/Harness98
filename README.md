@@ -34,11 +34,14 @@ choosing the larger harness architecture.
 
 ## Repository layout
 
-- `src/` — modular source for the version 1 interactive chat program
+- `src/` — modular source for the Harness98 interactive chat program
 - `BUILD.BAT` and `RUN.BAT` — Windows 98 build and launch scripts
 - `V1README.TXT` — target-machine instructions and command reference
 - `BUILD2.BAT` and `RUN2.BAT` — LibCurl.NET transport benchmark scripts
 - `V2README.TXT` — version 2 dependency and test instructions
+- `BUILD3.BAT`, `RUN3.BAT`, and `V3README.TXT` — Harness98 v3 build,
+  update-aware launcher, and target-machine instructions
+- `updater/` — the small restart-time update installer
 - `vendor/libcurl-win98/` — matched managed/native DLL dependency set
 - `probe/` — source and batch file for the original .NET connectivity probe
 - `curl-probe/` — known-working curl/OpenSSL TLS 1.2 connectivity probe
@@ -70,8 +73,8 @@ clear history, switch models, or replace the key.
 
 An authenticated end-to-end test using OpenRouter's free-model router completed
 successfully: the first response matched the requested text, and a second turn
-correctly recalled that response from the submitted message history. Physical
-Windows 98 validation of the complete version 1 program is the remaining step.
+correctly recalled that response from the submitted message history. The
+complete version 1 program was also validated on the physical Windows 98 target.
 
 Streaming output, saved conversations, command execution, and file editing are
 intentionally deferred to later milestones.
@@ -87,5 +90,18 @@ results unambiguous.
 The local x86 compatibility test completed the same parity sequence as version
 1: model retrieval, an authenticated first response, and a second response that
 retained the first turn. Unlike version 1, the DLL transport created no request
-or response files. Validation on the physical Windows 98 computer remains the
-decisive benchmark.
+or response files. The DLL transport, model selection, and multi-turn chat were
+validated on the physical Windows 98 computer.
+
+## Harness98 version 3
+
+Version 3 adopts the Harness98 name and retains the proven LibCurl.NET
+transport. Conversations are stored as individual JSON files with stable IDs;
+`/continue`, `/resume`, `/resume ID`, and `/new` manage them.
+
+The `/update` command reads `HARNESS98.CFG`, checks a manifest on the configured
+LAN share, copies and SHA-256-verifies a newer release into `UPDATE-STAGE`, and
+asks the user to restart. `RUN3.BAT` invokes the separate updater before launch,
+allowing loaded program files to be replaced safely. Replaced files are backed
+up, while credentials, configuration, and conversations are protected from the
+update manifest.

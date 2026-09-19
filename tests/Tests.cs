@@ -15,6 +15,8 @@ public sealed class Tests
         Run("Content-part response", TestContentParts);
         Run("API error message", TestApiError);
         Run("Saved conversations", TestSavedConversations);
+        Run("Update staging", TestUpdateStaging);
+        Run("Update application and backup", TestUpdateApplication);
 
         Console.WriteLine();
         if (failures == 0)
@@ -131,6 +133,78 @@ public sealed class Tests
             AssertEqual("C000002", second.Id);
             AssertEqual("2", store.List().Count.ToString());
             AssertEqual("C000002", store.MostRecent().Id);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
+    private static void TestUpdateStaging()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "Harness98UpdateTests-" +
+            Guid.NewGuid().ToString("N"));
+        string application = Path.Combine(root, "app");
+        string server = Path.Combine(root, "server");
+        Directory.CreateDirectory(application);
+        Directory.CreateDirectory(server);
+        try
+        {
+            string payload = Path.Combine(server, "HARNESS98.EXE");
+            File.WriteAllText(payload, "test update payload", System.Text.Encoding.ASCII);
+            string hash = UpdateManifest.HashFile(payload);
+            File.WriteAllText(Path.Combine(server, "MANIFEST.INI"),
+                "VERSION=3.0.1\r\nFILE=HARNESS98.EXE|" + hash + "\r\n",
+                System.Text.Encoding.ASCII);
+            File.WriteAllText(Path.Combine(application, "HARNESS98.CFG"),
+                "UPDATE_SERVER=" + server + "\r\n", System.Text.Encoding.ASCII);
+
+            UpdateManager manager = new UpdateManager(application);
+            string result = manager.CheckAndStage();
+            if (result.IndexOf("Restart") < 0)
+            {
+                throw new Exception("Update did not request a restart.");
+            }
+            string staged = Path.Combine(application,
+                "UPDATE-STAGE\\HARNESS98.EXE");
+            AssertEqual(hash, UpdateManifest.HashFile(staged));
+            if (!File.Exists(Path.Combine(application, "UPDATE-STAGE\\READY.TAG")))
+            {
+                throw new Exception("Update ready marker was not written.");
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
+    private static void TestUpdateApplication()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "Harness98ApplyTests-" +
+            Guid.NewGuid().ToString("N"));
+        string stage = Path.Combine(root, "UPDATE-STAGE");
+        Directory.CreateDirectory(root);
+        Directory.CreateDirectory(stage);
+        try
+        {
+            string target = Path.Combine(root, "HARNESS98.EXE");
+            string staged = Path.Combine(stage, "HARNESS98.EXE");
+            File.WriteAllText(target, "old payload", System.Text.Encoding.ASCII);
+            File.WriteAllText(staged, "new payload", System.Text.Encoding.ASCII);
+            string hash = UpdateManifest.HashFile(staged);
+            string manifestPath = Path.Combine(stage, "MANIFEST.INI");
+            File.WriteAllText(manifestPath, "VERSION=3.0.1\r\n" +
+                "FILE=HARNESS98.EXE|" + hash + "\r\n",
+                System.Text.Encoding.ASCII);
+            UpdateManifest manifest = UpdateManifest.Load(manifestPath);
+
+            Updater.VerifyStage(stage, manifest);
+            Updater.Apply(root, stage, manifest);
+
+            AssertEqual("new payload", File.ReadAllText(target));
+            AssertEqual("old payload", File.ReadAllText(Path.Combine(root,
+                "UPDATE-BACKUP\\HARNESS98.EXE")));
         }
         finally
         {

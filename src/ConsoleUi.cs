@@ -83,6 +83,7 @@ namespace Harness98
             Console.WriteLine("  /clear       Preserve this chat and start an empty one");
             Console.WriteLine("  /model       Choose a different model");
             Console.WriteLine("  /key         Replace the saved OpenRouter key");
+            Console.WriteLine("  /update      Check for and stage a Harness98 update");
             Console.WriteLine("  /help        Show this command list");
             Console.WriteLine("  /exit        Exit the program");
         }

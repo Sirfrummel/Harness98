@@ -40,7 +40,9 @@ namespace Harness98
                     return 0;
                 }
 
-                RunChat(client, settings, models, store, ref apiKey, session);
+                UpdateManager updates = new UpdateManager(baseDirectory);
+                RunChat(client, settings, models, store, updates, ref apiKey,
+                    session);
                 return 0;
             }
             catch (Exception ex)
@@ -199,8 +201,8 @@ namespace Harness98
         }
 
         private static void RunChat(OpenRouterClient client, Settings settings,
-            ArrayList models, ConversationStore store, ref string apiKey,
-            ChatSession session)
+            ArrayList models, ConversationStore store, UpdateManager updates,
+            ref string apiKey, ChatSession session)
         {
             Console.WriteLine();
             ShowActiveSession(session);
@@ -305,6 +307,19 @@ namespace Harness98
                 {
                     apiKey = settings.ReplaceKey();
                     Console.WriteLine("The new key will be used for the next request.");
+                    continue;
+                }
+                if (String.Compare(input, "/update", true) == 0)
+                {
+                    try
+                    {
+                        Console.WriteLine("Checking for updates...");
+                        Console.WriteLine(updates.CheckAndStage());
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine("UPDATE CHECK FAILED: " + ex.Message);
+                    }
                     continue;
                 }
                 if (input[0] == '/')
