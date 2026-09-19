@@ -22,5 +22,8 @@ After reviewing the generated package and manifest, publish explicitly:
 scripts/release.sh --publish
 ```
 
+Publishing cleanly replaces the exact generated stable-channel and versioned
+package directories so stale files from an earlier build cannot survive.
+
 Set `HARNESS98_PUBLISH_URL` to override the default private LAN destination, or
 `WINE_CSC` to override the .NET 2.0 compiler path used through Wine.

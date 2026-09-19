@@ -124,15 +124,22 @@ done < "$manifest"
 
 if $publish; then
     publish_url=${HARNESS98_PUBLISH_URL:-smb://Sirfrummel@192.168.50.170/retro/to-transfer/}
+    publish_root=${publish_url%/}
     command -v kioclient5 >/dev/null || {
         echo "kioclient5 is required for --publish." >&2
         exit 1
     }
     echo "Publishing stable channel and fallback package..."
+    if kioclient5 ls "$publish_root/harness98-updates/" >/dev/null 2>&1; then
+        kioclient5 --noninteractive rm "$publish_root/harness98-updates/"
+    fi
+    if kioclient5 ls "$publish_root/harness98-v$version/" >/dev/null 2>&1; then
+        kioclient5 --noninteractive rm "$publish_root/harness98-v$version/"
+    fi
     kioclient5 --noninteractive --overwrite copy \
-        "file://$updates_parent" "$publish_url"
+        "file://$updates_parent" "$publish_root/"
     kioclient5 --noninteractive --overwrite copy \
-        "file://$package" "$publish_url"
+        "file://$package" "$publish_root/"
 fi
 
 echo "Release $version is ready."
