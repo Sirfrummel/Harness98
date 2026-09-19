@@ -15,6 +15,10 @@ namespace Harness98.Gui
     {
         private const int WmVScroll = 0x0115;
         private const int SbBottom = 7;
+        private static readonly Color UserColor = Color.FromArgb(30, 60, 125);
+        private static readonly Color ToolRequestColor = Color.FromArgb(105, 55, 125);
+        private static readonly Color ToolResultColor = Color.FromArgb(25, 100, 105);
+        private static readonly Color ErrorColor = Color.FromArgb(160, 35, 35);
 
         [DllImport("user32.dll")]
         private static extern IntPtr SendMessage(IntPtr window, int message,
@@ -457,7 +461,7 @@ namespace Harness98.Gui
             {
                 string command = ReadToolCommand(progress.ToolCall.Arguments);
                 status.Text = "Running command...";
-                AppendLiveProgress("Command:", command);
+                AppendLiveProgress("Command:", command, ToolRequestColor);
                 return;
             }
             if (progress.Type == AgentProgressType.ToolCompleted)
@@ -466,7 +470,8 @@ namespace Harness98.Gui
                 message.ToolName = progress.ToolCall.Name;
                 status.Text = "Returning command output to the model...";
                 AppendLiveProgress("Command finished:",
-                    DisplayToolResult(message));
+                    DisplayToolResult(message), ToolResultFailed(message) ?
+                    ErrorColor : ToolResultColor);
             }
         }
 
@@ -507,7 +512,9 @@ namespace Harness98.Gui
             rtf.Append("{\\fonttbl{\\f0\\fnil MS Sans Serif;}}");
             rtf.Append("{\\colortbl;\\red30\\green60\\blue125;");
             rtf.Append("\\red55\\green105\\blue60;");
-            rtf.Append("\\red232\\green240\\blue232;}");
+            rtf.Append("\\red105\\green55\\blue125;");
+            rtf.Append("\\red25\\green100\\blue105;");
+            rtf.Append("\\red160\\green35\\blue35;}");
             rtf.Append("\\viewkind4\\uc1\\f0\\fs18 ");
             for (int i = 0; i < activeConversation.Messages.Count; i++)
             {
@@ -515,7 +522,7 @@ namespace Harness98.Gui
                     (ChatMessage)activeConversation.Messages[i];
                 if (message.Role == "user")
                 {
-                    rtf.Append("\\pard\\li0\\ri180\\sb60\\sa160\\cf1\\b >\\b0\\cf0  ");
+                    rtf.Append("\\pard\\li0\\ri180\\sb60\\sa160\\cf1\\b >\\b0  ");
                 }
                 else if (message.Role == "assistant")
                 {
@@ -524,14 +531,20 @@ namespace Harness98.Gui
                     rtf.Append("\\brdrl\\brdrs\\brdrw10\\brdrcf2");
                     rtf.Append("\\brdrb\\brdrs\\brdrw10\\brdrcf2");
                     rtf.Append("\\brdrr\\brdrs\\brdrw10\\brdrcf2");
-                    rtf.Append("\\cf2\\b :\\b0\\cf0  ");
+                    if (message.ToolCalls.Count > 0)
+                        rtf.Append("\\cf3\\b Command request:\\b0  ");
+                    else
+                        rtf.Append("\\cf2\\b :\\b0\\cf0  ");
                 }
                 else
                 {
-                    rtf.Append("\\pard\\li110\\ri110\\sb60\\sa160\\b !\\b0  ");
+                    int color = ToolResultFailed(message) ? 5 : 4;
+                    rtf.Append("\\pard\\li110\\ri110\\sb60\\sa160\\cf");
+                    rtf.Append(color.ToString());
+                    rtf.Append("\\b Command result:\\b0\\line ");
                 }
                 rtf.Append(RtfEncode(DisplayMessage(message)));
-                rtf.Append("\\par ");
+                rtf.Append("\\cf0\\par ");
             }
             rtf.Append('}');
             transcript.Rtf = rtf.ToString();
@@ -616,6 +629,21 @@ namespace Harness98.Gui
             }
         }
 
+        private static bool ToolResultFailed(ChatMessage message)
+        {
+            try
+            {
+                Hashtable result = Json.AsObject(Json.Parse(message.Content));
+                if (result == null) return false;
+                if (Json.GetString(result, "error") != null) return true;
+                return Json.GetInt64(result, "exit_code") != 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         private static string LimitDisplayText(string text, int maximum)
         {
             if (text == null || text.Length <= maximum) return text;
@@ -623,27 +651,29 @@ namespace Harness98.Gui
                 "\r\n[Display preview truncated; the model received more output]";
         }
 
-        private void AppendLiveProgress(string heading, string body)
+        private void AppendLiveProgress(string heading, string body, Color color)
         {
             transcript.SelectionStart = transcript.TextLength;
-            transcript.SelectionColor = Color.FromArgb(55, 105, 60);
+            transcript.SelectionColor = color;
             transcript.SelectionFont = new Font(transcript.Font, FontStyle.Bold);
             transcript.AppendText("\r\n\r\n" + heading + "\r\n");
             transcript.SelectionFont = transcript.Font;
-            transcript.SelectionColor = transcript.ForeColor;
+            transcript.SelectionColor = color;
             transcript.AppendText(LimitDisplayText(body, 2048));
+            transcript.SelectionColor = transcript.ForeColor;
             ScrollTranscriptToEnd();
         }
 
         private void AppendPendingUser(string text)
         {
             transcript.SelectionStart = transcript.TextLength;
-            transcript.SelectionColor = Color.FromArgb(30, 60, 125);
+            transcript.SelectionColor = UserColor;
             transcript.SelectionFont = new Font(transcript.Font, FontStyle.Bold);
             transcript.AppendText("\r\n> ");
             transcript.SelectionFont = transcript.Font;
-            transcript.SelectionColor = transcript.ForeColor;
+            transcript.SelectionColor = UserColor;
             transcript.AppendText(text);
+            transcript.SelectionColor = transcript.ForeColor;
             ScrollTranscriptToEnd();
         }
 

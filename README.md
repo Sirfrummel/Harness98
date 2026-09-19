@@ -138,6 +138,9 @@ conversations remain transient and are not added to saved history.
 Model lists preserve the ordering returned by OpenRouter rather than sorting
 alphabetically.
 
+Version 3.4.2 adds role-aware transcript colors for user messages, assistant
+responses, command requests, successful command output, and command failures.
+
 ## Release process
 
 The application version has one source of truth in `src/VersionInfo.cs`.
