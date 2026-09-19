@@ -66,6 +66,12 @@ namespace Harness98
 
         public string SendChat(string apiKey, string modelId, IList messages)
         {
+            return SendChatWithUsage(apiKey, modelId, messages).Answer;
+        }
+
+        public ChatCompletion SendChatWithUsage(string apiKey, string modelId,
+            IList messages)
+        {
             string request = BuildChatRequest(modelId, messages);
             HttpResult response = transport.PostJson(ChatUrl, request, apiKey);
             Hashtable root = ParseResponse(response);
@@ -85,10 +91,17 @@ namespace Harness98
             string content = ExtractText(message["content"]);
             if (content == null || content.Length == 0)
             {
-                return "(The model returned no text.)";
+                content = "(The model returned no text.)";
             }
 
-            return content;
+            ChatCompletion result = new ChatCompletion();
+            result.Answer = content;
+            Hashtable usage = Json.AsObject(root["usage"]);
+            result.PromptTokens = Json.GetInt64(usage, "prompt_tokens");
+            result.CompletionTokens = Json.GetInt64(usage, "completion_tokens");
+            result.TotalTokens = Json.GetInt64(usage, "total_tokens");
+            result.Cost = Json.GetDouble(usage, "cost");
+            return result;
         }
 
         private static bool ArrayContains(ArrayList values, string expected)
@@ -107,7 +120,8 @@ namespace Harness98
             StringBuilder json = new StringBuilder();
             json.Append("{\"model\":");
             json.Append(Json.Quote(modelId));
-            json.Append(",\"stream\":false,\"messages\":[");
+            json.Append(",\"stream\":false,\"usage\":{\"include\":true},");
+            json.Append("\"messages\":[");
 
             for (int i = 0; i < messages.Count; i++)
             {

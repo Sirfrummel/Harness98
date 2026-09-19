@@ -104,6 +104,26 @@ namespace Harness98
             return 0;
         }
 
+        public static double GetDouble(Hashtable value, string name)
+        {
+            if (value == null || !value.ContainsKey(name) || value[name] == null)
+            {
+                return 0;
+            }
+
+            object number = value[name];
+            if (number is long)
+            {
+                return (double)(long)number;
+            }
+            if (number is double)
+            {
+                return (double)number;
+            }
+
+            return 0;
+        }
+
         private sealed class Parser
         {
             private readonly string text;

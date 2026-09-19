@@ -82,6 +82,19 @@ namespace Harness98
         public string Answer;
         public string GeneratedTitle;
         public string Warning;
+        public long PromptTokens;
+        public long CompletionTokens;
+        public long TotalTokens;
+        public double Cost;
+    }
+
+    public sealed class ChatCompletion
+    {
+        public string Answer;
+        public long PromptTokens;
+        public long CompletionTokens;
+        public long TotalTokens;
+        public double Cost;
     }
 
     public sealed class ModelNameComparer : IComparer

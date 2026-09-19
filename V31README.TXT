@@ -10,7 +10,8 @@ GUI FEATURES
 ------------
 
 - Scrollable and selectable conversation transcript
-- Multiline prompt editor; Ctrl+Enter sends
+- Enter sends; Shift+Enter inserts a new line
+- Optional session cost and token toolbar under the View menu
 - Toggleable conversation sidebar and New Conversation command
 - Reusable model picker with text, vision-input, and image-output filters
 - OpenRouter's original model ordering is preserved
@@ -20,7 +21,7 @@ GUI FEATURES
 - Update checks under the Tools menu
 
 The capability filters describe models advertised by OpenRouter.  Harness98
-The current build still sends text messages only; image attachment and response
+currently sends text messages only; image attachment and response
 handling are future harness features.
 
 AUTOMATIC TITLES

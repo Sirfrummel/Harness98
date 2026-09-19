@@ -75,10 +75,10 @@ namespace Harness98
                 throw new ArgumentNullException("conversation");
             bool firstTurn = conversation.Count == 0;
             conversation.Add("user", text);
-            string answer;
+            ChatCompletion completion;
             try
             {
-                answer = client.SendChat(ApiKey, model.Id,
+                completion = client.SendChatWithUsage(ApiKey, model.Id,
                     conversation.Messages);
             }
             catch
@@ -87,11 +87,12 @@ namespace Harness98
                 throw;
             }
 
-            conversation.Add("assistant", answer);
+            conversation.Add("assistant", completion.Answer);
             conversation.ModelId = model.Id;
 
             ChatResult result = new ChatResult();
-            result.Answer = answer;
+            result.Answer = completion.Answer;
+            AddUsage(result, completion);
             try
             {
                 Conversations.Save(conversation);
@@ -104,7 +105,8 @@ namespace Harness98
             {
                 try
                 {
-                    result.GeneratedTitle = GenerateTitle(conversation, model);
+                    result.GeneratedTitle = GenerateTitle(conversation, model,
+                        result);
                 }
                 catch
                 {
@@ -114,7 +116,8 @@ namespace Harness98
             return result;
         }
 
-        private string GenerateTitle(Conversation conversation, ModelInfo chatModel)
+        private string GenerateTitle(Conversation conversation, ModelInfo chatModel,
+            ChatResult result)
         {
             ModelInfo titleModel = FindModel(Configuration.TitleModelId);
             if (titleModel == null) titleModel = chatModel;
@@ -124,7 +127,10 @@ namespace Harness98
                 "punctuation wrapper. Maximum 60 characters."));
             ChatMessage first = (ChatMessage)conversation.Messages[0];
             messages.Add(new ChatMessage("user", first.Content));
-            string title = client.SendChat(ApiKey, titleModel.Id, messages).Trim();
+            ChatCompletion completion = client.SendChatWithUsage(ApiKey,
+                titleModel.Id, messages);
+            AddUsage(result, completion);
+            string title = completion.Answer.Trim();
             title = title.Replace('\r', ' ').Replace('\n', ' ').Trim(' ', '"');
             if (title.Length > 60) title = title.Substring(0, 57) + "...";
             if (title.Length > 0)
@@ -134,6 +140,14 @@ namespace Harness98
                 return title;
             }
             return null;
+        }
+
+        private static void AddUsage(ChatResult total, ChatCompletion usage)
+        {
+            total.PromptTokens += usage.PromptTokens;
+            total.CompletionTokens += usage.CompletionTokens;
+            total.TotalTokens += usage.TotalTokens;
+            total.Cost += usage.Cost;
         }
 
         public void Dispose()

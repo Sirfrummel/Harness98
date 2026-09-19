@@ -62,18 +62,29 @@ public sealed class Tests
     {
         FakeTransport transport = new FakeTransport();
         transport.PostResponse = Ok("{\"choices\":[{\"message\":{" +
-            "\"role\":\"assistant\",\"content\":\"second answer\"}}]}" );
+            "\"role\":\"assistant\",\"content\":\"second answer\"}}]," +
+            "\"usage\":{\"prompt_tokens\":123,\"completion_tokens\":45," +
+            "\"total_tokens\":168,\"cost\":0.001234}}" );
         OpenRouterClient client = new OpenRouterClient(transport);
         ArrayList messages = new ArrayList();
         messages.Add(new ChatMessage("user", "first \"question\"\nline two"));
         messages.Add(new ChatMessage("assistant", "first answer"));
         messages.Add(new ChatMessage("user", "second question"));
 
-        string answer = client.SendChat("secret", "test/model", messages);
-        AssertEqual("second answer", answer);
+        ChatCompletion completion = client.SendChatWithUsage("secret",
+            "test/model", messages);
+        AssertEqual("second answer", completion.Answer);
+        AssertEqual("123", completion.PromptTokens.ToString());
+        AssertEqual("45", completion.CompletionTokens.ToString());
+        AssertEqual("168", completion.TotalTokens.ToString());
+        AssertEqual("0.001234", completion.Cost.ToString(
+            System.Globalization.CultureInfo.InvariantCulture));
 
         Hashtable request = Json.AsObject(Json.Parse(transport.LastPostBody));
         AssertEqual("test/model", Json.GetString(request, "model"));
+        Hashtable usage = Json.AsObject(request["usage"]);
+        if (usage == null || !(bool)usage["include"])
+            throw new Exception("Usage accounting was not requested.");
         ArrayList sentMessages = Json.AsArray(request["messages"]);
         AssertEqual("3", sentMessages.Count.ToString());
         AssertEqual("first \"question\"\nline two",

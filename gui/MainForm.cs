@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.ComponentModel;
 using System.Drawing;
+using System.Globalization;
 using System.Text;
 using System.Windows.Forms;
 
@@ -20,6 +21,9 @@ namespace Harness98.Gui
         private readonly Button modelButton;
         private readonly Button hideChatsButton;
         private readonly Button showChatsButton;
+        private readonly Panel costToolbar;
+        private readonly Label costLabel;
+        private readonly MenuItem costToolbarMenu;
         private readonly StatusBar status;
         private readonly BackgroundWorker startupWorker;
         private readonly BackgroundWorker chatWorker;
@@ -27,6 +31,10 @@ namespace Harness98.Gui
         private bool changingConversation;
         private Conversation activeConversation;
         private ModelInfo activeModel;
+        private long sessionPromptTokens;
+        private long sessionCompletionTokens;
+        private long sessionTotalTokens;
+        private double sessionCost;
 
         public MainForm()
         {
@@ -50,6 +58,8 @@ namespace Harness98.Gui
             MenuItem viewMenu = new MenuItem("&View");
             viewMenu.MenuItems.Add(new MenuItem("Toggle &conversations",
                 ToggleConversations));
+            costToolbarMenu = new MenuItem("&Cost Toolbar", ToggleCostToolbar);
+            viewMenu.MenuItems.Add(costToolbarMenu);
             menu.MenuItems.Add(viewMenu);
             MenuItem helpMenu = new MenuItem("&Help");
             helpMenu.MenuItems.Add(new MenuItem("&About", ShowAbout));
@@ -64,6 +74,21 @@ namespace Harness98.Gui
             mainSplit.Dock = DockStyle.Fill;
             Controls.Add(mainSplit);
             status.BringToFront();
+
+            costToolbar = new Panel();
+            costToolbar.Dock = DockStyle.Top;
+            costToolbar.Height = 25;
+            costToolbar.BorderStyle = BorderStyle.FixedSingle;
+            costToolbar.Visible = false;
+            Controls.Add(costToolbar);
+            costToolbar.BringToFront();
+
+            costLabel = new Label();
+            costLabel.Location = new Point(7, 5);
+            costLabel.AutoSize = true;
+            costToolbar.Controls.Add(costLabel);
+            UpdateCostToolbar();
+
             mainSplit.Panel1MinSize = 160;
             mainSplit.Panel2MinSize = 350;
             mainSplit.SplitterDistance = 210;
@@ -153,7 +178,7 @@ namespace Harness98.Gui
             sendButton.Click += new EventHandler(SendClicked);
             mainSplit.Panel2.Controls.Add(sendButton);
 
-            Label sendHint = MakeLabel("Ctrl+Enter", 416, 466);
+            Label sendHint = MakeLabel("Shift+Enter: new line", 385, 466);
             sendHint.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             mainSplit.Panel2.Controls.Add(sendHint);
 
@@ -358,8 +383,9 @@ namespace Harness98.Gui
 
         private void PromptKeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Control && e.KeyCode == Keys.Enter)
+            if (e.KeyCode == Keys.Enter && !e.Shift)
             {
+                e.Handled = true;
                 e.SuppressKeyPress = true;
                 BeginSend();
             }
@@ -406,6 +432,11 @@ namespace Harness98.Gui
             }
             ChatWork work = (ChatWork)e.Result;
             activeConversation = work.Conversation;
+            sessionPromptTokens += work.Result.PromptTokens;
+            sessionCompletionTokens += work.Result.CompletionTokens;
+            sessionTotalTokens += work.Result.TotalTokens;
+            sessionCost += work.Result.Cost;
+            UpdateCostToolbar();
             RenderConversation();
             RefreshConversationList();
             status.Text = work.Result.Warning == null ? "Ready" : work.Result.Warning;
@@ -498,6 +529,21 @@ namespace Harness98.Gui
         {
             hideChatsButton.Visible = !mainSplit.Panel1Collapsed;
             showChatsButton.Visible = mainSplit.Panel1Collapsed;
+        }
+
+        private void ToggleCostToolbar(object sender, EventArgs e)
+        {
+            costToolbar.Visible = !costToolbar.Visible;
+            costToolbarMenu.Checked = costToolbar.Visible;
+        }
+
+        private void UpdateCostToolbar()
+        {
+            costLabel.Text = "Session cost: $" +
+                sessionCost.ToString("0.000000", CultureInfo.InvariantCulture) +
+                "   Input: " + sessionPromptTokens.ToString() +
+                "   Output: " + sessionCompletionTokens.ToString() +
+                "   Total: " + sessionTotalTokens.ToString() + " tokens";
         }
 
         private void ShowSettings(object sender, EventArgs e)
