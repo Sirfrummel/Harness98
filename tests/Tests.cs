@@ -1,6 +1,6 @@
 using System;
 using System.Collections;
-using Win98Ai;
+using Harness98;
 
 public sealed class Tests
 {

@@ -4,7 +4,7 @@ using System.IO;
 using System.Text;
 using SeasideResearch.LibCurlNet;
 
-namespace Win98Ai
+namespace Harness98
 {
     public sealed class LibCurlTransport : IHttpTransport, IDisposable
     {
@@ -102,7 +102,7 @@ namespace Win98Ai
             {
                 headers.Append("Authorization: Bearer " + apiKey);
                 headers.Append("Content-Type: application/json");
-                headers.Append("X-OpenRouter-Title: Windows 98 AI Harness");
+                headers.Append("X-OpenRouter-Title: Harness98");
                 headers.Append("Expect:");
 
                 Set(easy, CURLoption.CURLOPT_URL, url);
@@ -114,7 +114,7 @@ namespace Win98Ai
                 Set(easy, CURLoption.CURLOPT_FOLLOWLOCATION, 1L);
                 Set(easy, CURLoption.CURLOPT_SSL_VERIFYPEER, true);
                 Set(easy, CURLoption.CURLOPT_SSL_VERIFYHOST, 2L);
-                Set(easy, CURLoption.CURLOPT_USERAGENT, "Win98-OpenRouter-Harness/2.0");
+                Set(easy, CURLoption.CURLOPT_USERAGENT, "Harness98/2.0");
 
                 if (method == "POST")
                 {

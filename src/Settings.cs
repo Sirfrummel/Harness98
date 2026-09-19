@@ -2,26 +2,39 @@ using System;
 using System.IO;
 using System.Text;
 
-namespace Win98Ai
+namespace Harness98
 {
     public sealed class Settings
     {
         private readonly string keyPath;
+        private readonly string legacyKeyPath;
 
         public Settings(string baseDirectory)
         {
-            keyPath = Path.Combine(baseDirectory, "OPENROUT.KEY");
+            keyPath = Path.Combine(baseDirectory, "HARNESS98.KEY");
+            legacyKeyPath = Path.Combine(baseDirectory, "OPENROUT.KEY");
         }
 
         public string LoadOrCreateKey()
         {
             if (File.Exists(keyPath))
             {
-                string saved = ReadKeyFile();
+                string saved = ReadKeyFile(keyPath);
                 if (saved.Length > 0)
                 {
                     Console.WriteLine("Loaded the saved OpenRouter key.");
                     return saved;
+                }
+            }
+
+            if (File.Exists(legacyKeyPath))
+            {
+                string legacy = ReadKeyFile(legacyKeyPath);
+                if (legacy.Length > 0)
+                {
+                    WriteKeyFile(legacy);
+                    Console.WriteLine("Migrated the saved key to HARNESS98.KEY.");
+                    return legacy;
                 }
             }
 
@@ -49,21 +62,26 @@ namespace Win98Ai
                 throw new ApplicationException("No API key was entered.");
             }
 
-            using (StreamWriter writer = new StreamWriter(keyPath, false,
-                new UTF8Encoding(false)))
-            {
-                writer.WriteLine(key);
-            }
+            WriteKeyFile(key);
 
             Console.WriteLine("Key saved locally.");
             return key;
         }
 
-        private string ReadKeyFile()
+        private static string ReadKeyFile(string path)
         {
-            using (StreamReader reader = new StreamReader(keyPath, Encoding.UTF8, true))
+            using (StreamReader reader = new StreamReader(path, Encoding.UTF8, true))
             {
                 return reader.ReadToEnd().Trim();
+            }
+        }
+
+        private void WriteKeyFile(string key)
+        {
+            using (StreamWriter writer = new StreamWriter(keyPath, false,
+                new UTF8Encoding(false)))
+            {
+                writer.WriteLine(key);
             }
         }
 

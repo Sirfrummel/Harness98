@@ -1,6 +1,6 @@
-# Windows 98 AI Harness
+# Harness98
 
-This project is exploring a small command-line AI harness that can run natively
+Harness98 is a small command-line AI harness that can run natively
 on Windows 98, call OpenRouter, and eventually operate on local files and run
 approved commands.
 

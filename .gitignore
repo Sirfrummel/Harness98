@@ -29,6 +29,7 @@ secrets/
 credentials/
 config.local.*
 OPENROUT.KEY
+HARNESS98.KEY
 
 # Editor and OS files
 *.suo

@@ -1,16 +1,16 @@
 using System;
 using System.Collections;
 
-namespace Win98Ai
+namespace Harness98
 {
     public sealed class Program
     {
         public static int Main(string[] args)
         {
 #if LIBCURL_DLL
-            Console.WriteLine("Windows 98 AI Harness v2 DLL benchmark");
+            Console.WriteLine("Harness98 v2 DLL benchmark");
 #else
-            Console.WriteLine("Windows 98 AI Harness v1");
+            Console.WriteLine("Harness98 v1");
 #endif
             Console.WriteLine("=========================");
             Console.WriteLine();

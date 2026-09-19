@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 
-namespace Win98Ai
+namespace Harness98
 {
     public interface IHttpTransport
     {
@@ -125,7 +125,7 @@ namespace Win98Ai
             AppendOption(config, "request", method);
             AppendOption(config, "header", "Authorization: Bearer " + apiKey);
             AppendOption(config, "header", "Content-Type: application/json");
-            AppendOption(config, "header", "X-OpenRouter-Title: Windows 98 AI Harness");
+            AppendOption(config, "header", "X-OpenRouter-Title: Harness98");
             AppendOption(config, "cacert", certificatePath);
             AppendOption(config, "output", responsePath);
             AppendOption(config, "write-out", "%{http_code}");

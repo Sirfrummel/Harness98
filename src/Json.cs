@@ -3,7 +3,7 @@ using System.Collections;
 using System.Globalization;
 using System.Text;
 
-namespace Win98Ai
+namespace Harness98
 {
     public static class Json
     {

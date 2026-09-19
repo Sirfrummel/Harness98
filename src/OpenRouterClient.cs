@@ -2,7 +2,7 @@ using System;
 using System.Collections;
 using System.Text;
 
-namespace Win98Ai
+namespace Harness98
 {
     public sealed class OpenRouterClient
     {

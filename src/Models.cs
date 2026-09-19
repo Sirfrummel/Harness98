@@ -1,7 +1,7 @@
 using System;
 using System.Collections;
 
-namespace Win98Ai
+namespace Harness98
 {
     public sealed class ModelInfo
     {
