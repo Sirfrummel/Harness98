@@ -1,9 +1,10 @@
-HARNESS98 3.1.1 - GUI AND CLI
+HARNESS98 3.1.2 - GUI, CLI, AND LAUNCHER
 ============================
 
-RUN3.BAT starts the graphical Harness98 application.  RUNCLI.BAT starts the
-command-line interface.  Both programs use the same API key, settings,
-conversation files, model catalog, networking code, and updater.
+HARNESS98.EXE is now a permanent launcher.  It automatically applies a staged
+update before starting H98GUI.EXE.  A desktop shortcut can safely point to
+HARNESS98.EXE.  RUNCLI.BAT starts the command-line interface.  Both frontends
+use the same API key, settings, conversation files, networking, and updater.
 
 GUI FEATURES
 ------------
@@ -12,13 +13,14 @@ GUI FEATURES
 - Multiline prompt editor; Ctrl+Enter sends
 - Toggleable conversation sidebar and New Conversation command
 - Reusable model picker with text, vision-input, and image-output filters
+- OpenRouter's original model ordering is preserved
 - Settings for API key, update server, and automatic conversation titles
 - Background requests with a replaceable status message
 - Compact three-line prompt editor and visually distinct chat turns
 - Update checks under the Tools menu
 
 The capability filters describe models advertised by OpenRouter.  Harness98
-3.1.1 still sends text messages only; image attachment and image response
+3.1.2 still sends text messages only; image attachment and image response
 handling are future harness features.
 
 AUTOMATIC TITLES
@@ -34,3 +36,7 @@ UPGRADING FROM 3.0.0
 Run /update in the 3.0.0 CLI and restart with RUN3.BAT.  The updater preserves
 HARNESS98.KEY, HARNESS98.CFG, and the CONVERSATIONS directory.  After the
 update, RUN3.BAT launches the GUI and RUNCLI.BAT remains available for the CLI.
+
+Upgrading from 3.1.1 requires one final launch through RUN3.BAT so the existing
+GUI executable can be replaced by the launcher.  After that transition, launch
+HARNESS98.EXE directly; it handles staged updates automatically.

@@ -64,7 +64,6 @@ namespace Harness98
         public Conversation NewConversation(string modelId)
         {
             Conversation conversation = Conversations.Create(modelId);
-            Conversations.Save(conversation);
             return conversation;
         }
 

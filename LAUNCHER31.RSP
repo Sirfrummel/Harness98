@@ -1,0 +1,9 @@
+/nologo
+/target:winexe
+/platform:x86
+/optimize+
+/main:Harness98.Launcher.LauncherProgram
+/reference:System.dll
+/reference:System.Windows.Forms.dll
+/out:HARNESS98.EXE
+LAUNCHER\LAUNCHER.CS

@@ -61,7 +61,6 @@ namespace Harness98
                 models.Add(model);
             }
 
-            models.Sort(new ModelNameComparer());
             return models;
         }
 

@@ -129,3 +129,9 @@ and optional model-generated conversation titles.
 Version 3.1.1 refines the chat layout with a toggleable conversation sidebar,
 a more compact composer, and distinct `>` user and `:` assistant transcript
 styling.
+
+Version 3.1.2 makes `HARNESS98.EXE` a stable launcher for `H98GUI.EXE`, allowing
+the same desktop shortcut to apply staged updates before opening the GUI. Empty
+conversations remain transient and are not added to saved history.
+Model lists preserve the ordering returned by OpenRouter rather than sorting
+alphabetically.

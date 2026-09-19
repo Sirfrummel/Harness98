@@ -8,6 +8,6 @@
 /reference:System.dll
 /reference:System.Drawing.dll
 /reference:System.Windows.Forms.dll
-/out:HARNESS98.EXE
+/out:H98GUI.EXE
 SRC\*.CS
 GUI\*.CS

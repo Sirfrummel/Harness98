@@ -37,6 +37,7 @@ namespace Harness98
             {
                 throw new ArgumentNullException("conversation");
             }
+            if (conversation.Count == 0) return;
             if (!IsValidId(conversation.Id))
             {
                 throw new ApplicationException("Invalid conversation ID.");
@@ -98,7 +99,8 @@ namespace Harness98
             {
                 try
                 {
-                    conversations.Add(Deserialize(ReadUtf8(files[i])));
+                    Conversation conversation = Deserialize(ReadUtf8(files[i]));
+                    if (conversation.Count > 0) conversations.Add(conversation);
                 }
                 catch
                 {

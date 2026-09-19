@@ -8,7 +8,7 @@ namespace Harness98
         public static int Main(string[] args)
         {
 #if HARNESS98_V3
-            Console.WriteLine("Harness98 3.1.1 CLI");
+            Console.WriteLine("Harness98 3.1.2 CLI");
 #elif LIBCURL_DLL
             Console.WriteLine("Harness98 v2 DLL benchmark");
 #else
@@ -148,7 +148,6 @@ namespace Harness98
             ModelInfo model = ConsoleUi.SelectModel(models);
             if (model == null) return null;
             Conversation conversation = store.Create(model.Id);
-            TrySave(store, conversation);
             return new ChatSession(model, conversation);
         }
 
@@ -217,7 +216,6 @@ namespace Harness98
                 {
                     session = new ChatSession(session.Model,
                         store.Create(session.Model.Id));
-                    TrySave(store, session.Conversation);
                     Console.WriteLine("Previous conversation preserved.");
                     ShowActiveSession(session);
                     continue;
@@ -345,6 +343,7 @@ namespace Harness98
         private static void TrySave(ConversationStore store,
             Conversation conversation)
         {
+            if (conversation.Count == 0) return;
             try
             {
                 store.Save(conversation);

@@ -10,7 +10,7 @@ public sealed class Tests
     public static int Main(string[] args)
     {
         Run("JSON strings", TestJsonStrings);
-        Run("Model parsing and sorting", TestModels);
+        Run("Model parsing and provider ordering", TestModels);
         Run("Chat history serialization", TestChat);
         Run("Content-part response", TestContentParts);
         Run("API error message", TestApiError);
@@ -50,11 +50,11 @@ public sealed class Tests
         OpenRouterClient client = new OpenRouterClient(transport);
         ArrayList models = client.GetModels("test-key");
         AssertEqual("2", models.Count.ToString());
-        AssertEqual("a/model", ((ModelInfo)models[0]).Id);
-        AssertEqual("z/model", ((ModelInfo)models[1]).Id);
-        if (!((ModelInfo)models[1]).AcceptsImages)
+        AssertEqual("z/model", ((ModelInfo)models[0]).Id);
+        AssertEqual("a/model", ((ModelInfo)models[1]).Id);
+        if (!((ModelInfo)models[0]).AcceptsImages)
             throw new Exception("Image-input capability was not parsed.");
-        if (((ModelInfo)models[1]).GeneratesImages)
+        if (((ModelInfo)models[0]).GeneratesImages)
             throw new Exception("Image-output capability was parsed incorrectly.");
     }
 
@@ -135,7 +135,12 @@ public sealed class Tests
                 ((ChatMessage)loaded.Messages[0]).Content);
             AssertEqual("A saved question with a snowman \u2603", loaded.Title);
 
+            Conversation empty = store.Create("provider/empty-model");
+            store.Save(empty);
+            AssertEqual("1", store.List().Count.ToString());
+
             Conversation second = store.Create("provider/second-model");
+            second.Add("user", "Second saved conversation");
             store.Save(second);
             AssertEqual("C000002", second.Id);
             AssertEqual("2", store.List().Count.ToString());
@@ -157,11 +162,11 @@ public sealed class Tests
         Directory.CreateDirectory(server);
         try
         {
-            string payload = Path.Combine(server, "HARNESS98.EXE");
+            string payload = Path.Combine(server, "H98GUI.EXE");
             File.WriteAllText(payload, "test update payload", System.Text.Encoding.ASCII);
             string hash = UpdateManifest.HashFile(payload);
             File.WriteAllText(Path.Combine(server, "MANIFEST.INI"),
-                "VERSION=3.1.2\r\nFILE=HARNESS98.EXE|" + hash + "\r\n",
+                "VERSION=3.1.3\r\nFILE=H98GUI.EXE|" + hash + "\r\n",
                 System.Text.Encoding.ASCII);
             File.WriteAllText(Path.Combine(application, "HARNESS98.CFG"),
                 "UPDATE_SERVER=" + server + "\r\n", System.Text.Encoding.ASCII);
@@ -173,7 +178,7 @@ public sealed class Tests
                 throw new Exception("Update did not request a restart.");
             }
             string staged = Path.Combine(application,
-                "UPDATE-STAGE\\HARNESS98.EXE");
+                "UPDATE-STAGE\\H98GUI.EXE");
             AssertEqual(hash, UpdateManifest.HashFile(staged));
             if (!File.Exists(Path.Combine(application, "UPDATE-STAGE\\READY.TAG")))
             {
@@ -195,14 +200,14 @@ public sealed class Tests
         Directory.CreateDirectory(stage);
         try
         {
-            string target = Path.Combine(root, "HARNESS98.EXE");
-            string staged = Path.Combine(stage, "HARNESS98.EXE");
+            string target = Path.Combine(root, "H98GUI.EXE");
+            string staged = Path.Combine(stage, "H98GUI.EXE");
             File.WriteAllText(target, "old payload", System.Text.Encoding.ASCII);
             File.WriteAllText(staged, "new payload", System.Text.Encoding.ASCII);
             string hash = UpdateManifest.HashFile(staged);
             string manifestPath = Path.Combine(stage, "MANIFEST.INI");
-            File.WriteAllText(manifestPath, "VERSION=3.1.2\r\n" +
-                "FILE=HARNESS98.EXE|" + hash + "\r\n",
+            File.WriteAllText(manifestPath, "VERSION=3.1.3\r\n" +
+                "FILE=H98GUI.EXE|" + hash + "\r\n",
                 System.Text.Encoding.ASCII);
             UpdateManifest manifest = UpdateManifest.Load(manifestPath);
 
@@ -211,7 +216,7 @@ public sealed class Tests
 
             AssertEqual("new payload", File.ReadAllText(target));
             AssertEqual("old payload", File.ReadAllText(Path.Combine(root,
-                "UPDATE-BACKUP\\HARNESS98.EXE")));
+                "UPDATE-BACKUP\\H98GUI.EXE")));
         }
         finally
         {

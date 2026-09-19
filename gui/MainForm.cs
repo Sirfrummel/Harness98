@@ -28,7 +28,7 @@ namespace Harness98.Gui
 
         public MainForm()
         {
-            Text = "Harness98 3.1.1";
+            Text = "Harness98 3.1.2";
             ClientSize = new Size(720, 520);
             MinimumSize = new Size(560, 400);
             StartPosition = FormStartPosition.CenterScreen;
@@ -447,7 +447,9 @@ namespace Harness98.Gui
             transcript.ScrollToCaret();
             modelName.Text = activeModel == null ? "" :
                 activeModel.Name + "  (" + activeModel.Id + ")";
-            Text = "Harness98 3.1.1 - " + activeConversation.Title;
+            string title = activeConversation.Title.Length == 0 ?
+                "(new conversation)" : activeConversation.Title;
+            Text = "Harness98 3.1.2 - " + title;
         }
 
         private void AppendPendingUser(string text)
@@ -527,7 +529,7 @@ namespace Harness98.Gui
 
         private void ShowAbout(object sender, EventArgs e)
         {
-            MessageBox.Show(this, "Harness98 3.1.1\r\nWindows 98 AI harness\r\n" +
+            MessageBox.Show(this, "Harness98 3.1.2\r\nWindows 98 AI harness\r\n" +
                 "GUI and CLI share the same core and conversation files.",
                 "About Harness98", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
