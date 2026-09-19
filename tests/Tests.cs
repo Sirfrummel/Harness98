@@ -161,7 +161,7 @@ public sealed class Tests
             File.WriteAllText(payload, "test update payload", System.Text.Encoding.ASCII);
             string hash = UpdateManifest.HashFile(payload);
             File.WriteAllText(Path.Combine(server, "MANIFEST.INI"),
-                "VERSION=3.1.1\r\nFILE=HARNESS98.EXE|" + hash + "\r\n",
+                "VERSION=3.1.2\r\nFILE=HARNESS98.EXE|" + hash + "\r\n",
                 System.Text.Encoding.ASCII);
             File.WriteAllText(Path.Combine(application, "HARNESS98.CFG"),
                 "UPDATE_SERVER=" + server + "\r\n", System.Text.Encoding.ASCII);
@@ -201,7 +201,7 @@ public sealed class Tests
             File.WriteAllText(staged, "new payload", System.Text.Encoding.ASCII);
             string hash = UpdateManifest.HashFile(staged);
             string manifestPath = Path.Combine(stage, "MANIFEST.INI");
-            File.WriteAllText(manifestPath, "VERSION=3.1.1\r\n" +
+            File.WriteAllText(manifestPath, "VERSION=3.1.2\r\n" +
                 "FILE=HARNESS98.EXE|" + hash + "\r\n",
                 System.Text.Encoding.ASCII);
             UpdateManifest manifest = UpdateManifest.Load(manifestPath);

@@ -125,3 +125,7 @@ configuration, update service, and send/save behavior through `HarnessCore`.
 The GUI adds conversation management, a reusable model picker with multimodal
 capability filters, background requests, and settings for credentials, updates,
 and optional model-generated conversation titles.
+
+Version 3.1.1 refines the chat layout with a toggleable conversation sidebar,
+a more compact composer, and distinct `>` user and `:` assistant transcript
+styling.

@@ -10,7 +10,8 @@ namespace Harness98.Gui
     public sealed class MainForm : Form
     {
         private readonly HarnessCore core;
-        private readonly ComboBox conversations;
+        private readonly ListBox conversations;
+        private readonly SplitContainer mainSplit;
         private readonly TextBox modelName;
         private readonly RichTextBox transcript;
         private readonly TextBox prompt;
@@ -27,7 +28,7 @@ namespace Harness98.Gui
 
         public MainForm()
         {
-            Text = "Harness98 3.1.0";
+            Text = "Harness98 3.1.1";
             ClientSize = new Size(720, 520);
             MinimumSize = new Size(560, 400);
             StartPosition = FormStartPosition.CenterScreen;
@@ -44,85 +45,114 @@ namespace Harness98.Gui
             toolsMenu.MenuItems.Add(new MenuItem("&Settings...", ShowSettings));
             toolsMenu.MenuItems.Add(new MenuItem("Check for &updates", CheckUpdates));
             menu.MenuItems.Add(toolsMenu);
+            MenuItem viewMenu = new MenuItem("&View");
+            viewMenu.MenuItems.Add(new MenuItem("Toggle &conversations",
+                ToggleConversations));
+            menu.MenuItems.Add(viewMenu);
             MenuItem helpMenu = new MenuItem("&Help");
             helpMenu.MenuItems.Add(new MenuItem("&About", ShowAbout));
             menu.MenuItems.Add(helpMenu);
             Menu = menu;
 
-            Label conversationLabel = MakeLabel("Conversation:", 8, 13);
-            Controls.Add(conversationLabel);
-            conversations = new ComboBox();
-            conversations.Location = new Point(92, 9);
-            conversations.Size = new Size(300, 21);
-            conversations.DropDownStyle = ComboBoxStyle.DropDownList;
-            conversations.Anchor = AnchorStyles.Top | AnchorStyles.Left |
-                AnchorStyles.Right;
+            status = new StatusBar();
+            status.Text = "Starting Harness98...";
+            Controls.Add(status);
+
+            mainSplit = new SplitContainer();
+            mainSplit.Dock = DockStyle.Fill;
+            Controls.Add(mainSplit);
+            status.BringToFront();
+            mainSplit.Panel1MinSize = 160;
+            mainSplit.Panel2MinSize = 350;
+            mainSplit.SplitterDistance = 210;
+
+            Label conversationLabel = MakeLabel("Conversations", 8, 13);
+            conversationLabel.Font = new Font(conversationLabel.Font, FontStyle.Bold);
+            mainSplit.Panel1.Controls.Add(conversationLabel);
+
+            conversations = new ListBox();
+            conversations.Location = new Point(8, 42);
+            conversations.Size = new Size(194, 420);
+            conversations.IntegralHeight = false;
+            conversations.Anchor = AnchorStyles.Top | AnchorStyles.Bottom |
+                AnchorStyles.Left | AnchorStyles.Right;
             conversations.SelectedIndexChanged += new EventHandler(
                 ConversationChanged);
-            Controls.Add(conversations);
+            mainSplit.Panel1.Controls.Add(conversations);
 
             newButton = new Button();
-            newButton.Text = "New...";
-            newButton.Location = new Point(400, 7);
-            newButton.Size = new Size(72, 25);
+            newButton.Text = "New";
+            newButton.Location = new Point(98, 7);
+            newButton.Size = new Size(50, 27);
             newButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             newButton.Click += new EventHandler(NewConversation);
-            Controls.Add(newButton);
+            mainSplit.Panel1.Controls.Add(newButton);
 
-            Label modelLabel = MakeLabel("Model:", 8, 45);
-            Controls.Add(modelLabel);
+            Button hideChats = new Button();
+            hideChats.Text = "<<";
+            hideChats.Location = new Point(154, 7);
+            hideChats.Size = new Size(48, 27);
+            hideChats.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            hideChats.Click += new EventHandler(ToggleConversations);
+            mainSplit.Panel1.Controls.Add(hideChats);
+
+            Button showChats = new Button();
+            showChats.Text = "Chats >>";
+            showChats.Location = new Point(8, 7);
+            showChats.Size = new Size(72, 27);
+            showChats.Click += new EventHandler(ToggleConversations);
+            mainSplit.Panel2.Controls.Add(showChats);
+
+            Label modelLabel = MakeLabel("Model:", 88, 13);
+            mainSplit.Panel2.Controls.Add(modelLabel);
             modelName = new TextBox();
-            modelName.Location = new Point(58, 41);
-            modelName.Size = new Size(558, 20);
+            modelName.Location = new Point(138, 9);
+            modelName.Size = new Size(257, 20);
             modelName.ReadOnly = true;
             modelName.Anchor = AnchorStyles.Top | AnchorStyles.Left |
                 AnchorStyles.Right;
-            Controls.Add(modelName);
+            mainSplit.Panel2.Controls.Add(modelName);
 
             modelButton = new Button();
             modelButton.Text = "Choose...";
-            modelButton.Location = new Point(624, 39);
+            modelButton.Location = new Point(403, 7);
             modelButton.Size = new Size(88, 25);
             modelButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             modelButton.Click += new EventHandler(ChooseModel);
-            Controls.Add(modelButton);
+            mainSplit.Panel2.Controls.Add(modelButton);
 
             transcript = new RichTextBox();
-            transcript.Location = new Point(8, 72);
-            transcript.Size = new Size(704, 326);
+            transcript.Location = new Point(8, 40);
+            transcript.Size = new Size(483, 382);
             transcript.Anchor = AnchorStyles.Top | AnchorStyles.Bottom |
                 AnchorStyles.Left | AnchorStyles.Right;
             transcript.ReadOnly = true;
             transcript.HideSelection = false;
             transcript.DetectUrls = false;
-            Controls.Add(transcript);
+            mainSplit.Panel2.Controls.Add(transcript);
 
             prompt = new TextBox();
-            prompt.Location = new Point(8, 406);
-            prompt.Size = new Size(608, 74);
+            prompt.Location = new Point(8, 430);
+            prompt.Size = new Size(387, 54);
             prompt.Anchor = AnchorStyles.Bottom | AnchorStyles.Left |
                 AnchorStyles.Right;
             prompt.Multiline = true;
             prompt.AcceptsReturn = true;
             prompt.ScrollBars = ScrollBars.Vertical;
             prompt.KeyDown += new KeyEventHandler(PromptKeyDown);
-            Controls.Add(prompt);
+            mainSplit.Panel2.Controls.Add(prompt);
 
             sendButton = new Button();
             sendButton.Text = "Send";
-            sendButton.Location = new Point(624, 406);
+            sendButton.Location = new Point(403, 430);
             sendButton.Size = new Size(88, 30);
             sendButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             sendButton.Click += new EventHandler(SendClicked);
-            Controls.Add(sendButton);
+            mainSplit.Panel2.Controls.Add(sendButton);
 
-            Label sendHint = MakeLabel("Ctrl+Enter", 637, 445);
+            Label sendHint = MakeLabel("Ctrl+Enter", 416, 466);
             sendHint.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-            Controls.Add(sendHint);
-
-            status = new StatusBar();
-            status.Text = "Starting Harness98...";
-            Controls.Add(status);
+            mainSplit.Panel2.Controls.Add(sendHint);
 
             startupWorker = new BackgroundWorker();
             startupWorker.DoWork += new DoWorkEventHandler(StartupDoWork);
@@ -343,7 +373,7 @@ namespace Harness98.Gui
             work.Conversation = activeConversation;
             work.Model = activeModel;
             work.Text = text;
-            AppendTranscript("\r\n\r\nYou> " + text);
+            AppendPendingUser(text);
             prompt.Clear();
             SetInteractive(false);
             status.Text = "Waiting for " + activeModel.Name + "...";
@@ -380,27 +410,79 @@ namespace Harness98.Gui
         {
             transcript.Clear();
             if (activeConversation == null) return;
+            StringBuilder rtf = new StringBuilder();
+            rtf.Append("{\\rtf1\\ansi\\deff0");
+            rtf.Append("{\\fonttbl{\\f0\\fnil MS Sans Serif;}}");
+            rtf.Append("{\\colortbl;\\red30\\green60\\blue125;");
+            rtf.Append("\\red55\\green105\\blue60;");
+            rtf.Append("\\red232\\green240\\blue232;}");
+            rtf.Append("\\viewkind4\\uc1\\f0\\fs18 ");
             for (int i = 0; i < activeConversation.Messages.Count; i++)
             {
                 ChatMessage message =
                     (ChatMessage)activeConversation.Messages[i];
-                if (i > 0) transcript.AppendText("\r\n\r\n");
-                string role = message.Role == "user" ? "You" :
-                    (message.Role == "assistant" ? "Assistant" : message.Role);
-                transcript.AppendText(role + "> " + message.Content);
+                if (message.Role == "user")
+                {
+                    rtf.Append("\\pard\\li0\\ri180\\sb60\\sa160\\cf1\\b >\\b0\\cf0  ");
+                }
+                else if (message.Role == "assistant")
+                {
+                    rtf.Append("\\pard\\li220\\ri100\\sb80\\sa180");
+                    rtf.Append("\\brdrt\\brdrs\\brdrw10\\brdrcf2");
+                    rtf.Append("\\brdrl\\brdrs\\brdrw10\\brdrcf2");
+                    rtf.Append("\\brdrb\\brdrs\\brdrw10\\brdrcf2");
+                    rtf.Append("\\brdrr\\brdrs\\brdrw10\\brdrcf2");
+                    rtf.Append("\\cf2\\b :\\b0\\cf0  ");
+                }
+                else
+                {
+                    rtf.Append("\\pard\\li110\\ri110\\sb60\\sa160\\b !\\b0  ");
+                }
+                rtf.Append(RtfEncode(message.Content));
+                rtf.Append("\\par ");
             }
+            rtf.Append('}');
+            transcript.Rtf = rtf.ToString();
             transcript.SelectionStart = transcript.TextLength;
             transcript.ScrollToCaret();
             modelName.Text = activeModel == null ? "" :
                 activeModel.Name + "  (" + activeModel.Id + ")";
-            Text = "Harness98 3.1.0 - " + activeConversation.Title;
+            Text = "Harness98 3.1.1 - " + activeConversation.Title;
         }
 
-        private void AppendTranscript(string text)
+        private void AppendPendingUser(string text)
         {
+            transcript.SelectionStart = transcript.TextLength;
+            transcript.SelectionColor = Color.FromArgb(30, 60, 125);
+            transcript.SelectionFont = new Font(transcript.Font, FontStyle.Bold);
+            transcript.AppendText("\r\n> ");
+            transcript.SelectionFont = transcript.Font;
+            transcript.SelectionColor = transcript.ForeColor;
             transcript.AppendText(text);
             transcript.SelectionStart = transcript.TextLength;
             transcript.ScrollToCaret();
+        }
+
+        private static string RtfEncode(string text)
+        {
+            StringBuilder encoded = new StringBuilder();
+            for (int i = 0; i < text.Length; i++)
+            {
+                char value = text[i];
+                if (value == '\r') continue;
+                if (value == '\n') encoded.Append("\\line ");
+                else if (value == '\\' || value == '{' || value == '}')
+                    encoded.Append('\\').Append(value);
+                else if (value > 127)
+                    encoded.Append("\\u").Append(((short)value).ToString()).Append('?');
+                else encoded.Append(value);
+            }
+            return encoded.ToString();
+        }
+
+        private void ToggleConversations(object sender, EventArgs e)
+        {
+            mainSplit.Panel1Collapsed = !mainSplit.Panel1Collapsed;
         }
 
         private void ShowSettings(object sender, EventArgs e)
@@ -445,7 +527,7 @@ namespace Harness98.Gui
 
         private void ShowAbout(object sender, EventArgs e)
         {
-            MessageBox.Show(this, "Harness98 3.1.0\r\nWindows 98 AI harness\r\n" +
+            MessageBox.Show(this, "Harness98 3.1.1\r\nWindows 98 AI harness\r\n" +
                 "GUI and CLI share the same core and conversation files.",
                 "About Harness98", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }

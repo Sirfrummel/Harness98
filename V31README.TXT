@@ -1,4 +1,4 @@
-HARNESS98 3.1.0 - GUI AND CLI
+HARNESS98 3.1.1 - GUI AND CLI
 ============================
 
 RUN3.BAT starts the graphical Harness98 application.  RUNCLI.BAT starts the
@@ -10,14 +10,15 @@ GUI FEATURES
 
 - Scrollable and selectable conversation transcript
 - Multiline prompt editor; Ctrl+Enter sends
-- Conversation selector and New Conversation command
+- Toggleable conversation sidebar and New Conversation command
 - Reusable model picker with text, vision-input, and image-output filters
 - Settings for API key, update server, and automatic conversation titles
 - Background requests with a replaceable status message
+- Compact three-line prompt editor and visually distinct chat turns
 - Update checks under the Tools menu
 
 The capability filters describe models advertised by OpenRouter.  Harness98
-3.1.0 still sends text messages only; image attachment and image response
+3.1.1 still sends text messages only; image attachment and image response
 handling are future harness features.
 
 AUTOMATIC TITLES

@@ -8,7 +8,7 @@ namespace Harness98
         public static int Main(string[] args)
         {
 #if HARNESS98_V3
-            Console.WriteLine("Harness98 3.1.0 CLI");
+            Console.WriteLine("Harness98 3.1.1 CLI");
 #elif LIBCURL_DLL
             Console.WriteLine("Harness98 v2 DLL benchmark");
 #else
