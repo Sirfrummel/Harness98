@@ -475,7 +475,7 @@ namespace Harness98.Gui
                 {
                     rtf.Append("\\pard\\li110\\ri110\\sb60\\sa160\\b !\\b0  ");
                 }
-                rtf.Append(RtfEncode(message.Content));
+                rtf.Append(RtfEncode(DisplayMessage(message)));
                 rtf.Append("\\par ");
             }
             rtf.Append('}');
@@ -487,6 +487,65 @@ namespace Harness98.Gui
             string title = activeConversation.Title.Length == 0 ?
                 "(new conversation)" : activeConversation.Title;
             Text = "Harness98 " + VersionInfo.Current + " - " + title;
+        }
+
+        private static string DisplayMessage(ChatMessage message)
+        {
+            if (message.Role == "tool") return DisplayToolResult(message);
+            if (message.ToolCalls.Count == 0) return message.Content;
+
+            StringBuilder text = new StringBuilder();
+            if (message.Content != null && message.Content.Length > 0)
+                text.Append(message.Content).Append("\r\n");
+            for (int i = 0; i < message.ToolCalls.Count; i++)
+            {
+                ToolCall call = (ToolCall)message.ToolCalls[i];
+                if (i > 0) text.Append("\r\n");
+                text.Append("Tool request: ").Append(call.Name);
+                try
+                {
+                    Hashtable arguments = Json.AsObject(Json.Parse(call.Arguments));
+                    string command = Json.GetString(arguments, "command");
+                    if (command != null) text.Append("\r\n> ").Append(command);
+                    else text.Append("\r\n").Append(call.Arguments);
+                }
+                catch
+                {
+                    text.Append("\r\n").Append(call.Arguments);
+                }
+            }
+            return text.ToString();
+        }
+
+        private static string DisplayToolResult(ChatMessage message)
+        {
+            try
+            {
+                Hashtable result = Json.AsObject(Json.Parse(message.Content));
+                if (result == null) return message.Content;
+                string error = Json.GetString(result, "error");
+                if (error != null) return "Tool error: " + error;
+                StringBuilder text = new StringBuilder();
+                text.Append("Tool result: ").Append(message.ToolName);
+                string output = Json.GetString(result, "stdout");
+                string errors = Json.GetString(result, "stderr");
+                if (output != null && output.Length > 0)
+                    text.Append("\r\n").Append(output.TrimEnd());
+                if (errors != null && errors.Length > 0)
+                    text.Append("\r\nError output:\r\n").Append(errors.TrimEnd());
+                text.Append("\r\nExit code: ").Append(
+                    Json.GetInt64(result, "exit_code").ToString());
+                if (result["timed_out"] is bool && (bool)result["timed_out"])
+                    text.Append(" (timed out)");
+                if (result["output_truncated"] is bool &&
+                    (bool)result["output_truncated"])
+                    text.Append("\r\n[Output was truncated]");
+                return text.ToString();
+            }
+            catch
+            {
+                return message.Content;
+            }
         }
 
         private void AppendPendingUser(string text)

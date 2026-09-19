@@ -13,6 +13,7 @@ namespace Harness98
         public string Description;
         public bool AcceptsImages;
         public bool GeneratesImages;
+        public bool SupportsTools;
 
         public override string ToString()
         {
@@ -22,14 +23,35 @@ namespace Harness98
 
     public sealed class ChatMessage
     {
+        private readonly ArrayList toolCalls = new ArrayList();
+
         public string Role;
         public string Content;
+        public string ToolCallId;
+        public string ToolName;
 
         public ChatMessage(string role, string content)
         {
             Role = role;
             Content = content;
         }
+
+        public IList ToolCalls
+        {
+            get { return toolCalls; }
+        }
+
+        public void AddToolCall(ToolCall call)
+        {
+            toolCalls.Add(call);
+        }
+    }
+
+    public sealed class ToolCall
+    {
+        public string Id;
+        public string Name;
+        public string Arguments;
     }
 
     public sealed class Conversation
@@ -57,6 +79,11 @@ namespace Harness98
             messages.Add(new ChatMessage(role, content));
         }
 
+        public void Add(ChatMessage message)
+        {
+            messages.Add(message);
+        }
+
         public void RemoveLast()
         {
             if (messages.Count > 0)
@@ -68,6 +95,14 @@ namespace Harness98
         public void Clear()
         {
             messages.Clear();
+        }
+
+        public void Truncate(int count)
+        {
+            while (messages.Count > count)
+            {
+                messages.RemoveAt(messages.Count - 1);
+            }
         }
     }
 
@@ -90,11 +125,23 @@ namespace Harness98
 
     public sealed class ChatCompletion
     {
+        private readonly ArrayList toolCalls = new ArrayList();
+
         public string Answer;
         public long PromptTokens;
         public long CompletionTokens;
         public long TotalTokens;
         public double Cost;
+
+        public IList ToolCalls
+        {
+            get { return toolCalls; }
+        }
+
+        public void AddToolCall(ToolCall call)
+        {
+            toolCalls.Add(call);
+        }
     }
 
     public sealed class ModelNameComparer : IComparer

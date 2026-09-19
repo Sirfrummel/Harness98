@@ -11,6 +11,7 @@ namespace Harness98.Gui
         private readonly TextBox search;
         private readonly CheckBox acceptsImages;
         private readonly CheckBox generatesImages;
+        private readonly CheckBox supportsTools;
         private readonly ListView list;
         private readonly Label countLabel;
 
@@ -51,6 +52,13 @@ namespace Harness98.Gui
             generatesImages.AutoSize = true;
             generatesImages.CheckedChanged += new EventHandler(FilterChanged);
             Controls.Add(generatesImages);
+
+            supportsTools = new CheckBox();
+            supportsTools.Text = "Tool use";
+            supportsTools.Location = new Point(260, 38);
+            supportsTools.AutoSize = true;
+            supportsTools.CheckedChanged += new EventHandler(FilterChanged);
+            Controls.Add(supportsTools);
 
             countLabel = new Label();
             countLabel.Location = new Point(500, 40);
@@ -110,12 +118,14 @@ namespace Harness98.Gui
                 ModelInfo model = (ModelInfo)models[i];
                 if (acceptsImages.Checked && !model.AcceptsImages) continue;
                 if (generatesImages.Checked && !model.GeneratesImages) continue;
+                if (supportsTools.Checked && !model.SupportsTools) continue;
                 if (query.Length > 0 && model.Name.ToLower().IndexOf(query) < 0 &&
                     model.Id.ToLower().IndexOf(query) < 0) continue;
 
                 string capabilities = "Text";
                 if (model.AcceptsImages) capabilities += ", Vision";
                 if (model.GeneratesImages) capabilities += ", Image out";
+                if (model.SupportsTools) capabilities += ", Tools";
                 ListViewItem item = new ListViewItem(model.Name);
                 item.SubItems.Add(model.Id);
                 item.SubItems.Add(capabilities);

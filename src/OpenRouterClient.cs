@@ -54,6 +54,8 @@ namespace Harness98
                 model.GeneratesImages = ArrayContains(
                     Json.AsArray(architecture == null ? null :
                     architecture["output_modalities"]), "image");
+                model.SupportsTools = ArrayContains(
+                    Json.AsArray(item["supported_parameters"]), "tools");
 
                 Hashtable pricing = Json.AsObject(item["pricing"]);
                 model.PromptPrice = Json.GetString(pricing, "prompt");
@@ -72,7 +74,13 @@ namespace Harness98
         public ChatCompletion SendChatWithUsage(string apiKey, string modelId,
             IList messages)
         {
-            string request = BuildChatRequest(modelId, messages);
+            return SendChatWithUsage(apiKey, modelId, messages, null);
+        }
+
+        public ChatCompletion SendChatWithUsage(string apiKey, string modelId,
+            IList messages, string toolsJson)
+        {
+            string request = BuildChatRequest(modelId, messages, toolsJson);
             HttpResult response = transport.PostJson(ChatUrl, request, apiKey);
             Hashtable root = ParseResponse(response);
             ArrayList choices = Json.AsArray(root["choices"]);
@@ -88,14 +96,31 @@ namespace Harness98
                 throw new ApplicationException("The response choice did not contain a message.");
             }
 
-            string content = ExtractText(message["content"]);
-            if (content == null || content.Length == 0)
-            {
-                content = "(The model returned no text.)";
-            }
-
             ChatCompletion result = new ChatCompletion();
-            result.Answer = content;
+            string content = ExtractText(message["content"]);
+            ArrayList toolCalls = Json.AsArray(message["tool_calls"]);
+            if (toolCalls != null)
+            {
+                for (int i = 0; i < toolCalls.Count; i++)
+                {
+                    Hashtable item = Json.AsObject(toolCalls[i]);
+                    Hashtable function = item == null ? null :
+                        Json.AsObject(item["function"]);
+                    string id = Json.GetString(item, "id");
+                    string name = Json.GetString(function, "name");
+                    string arguments = Json.GetString(function, "arguments");
+                    if (id == null || name == null) continue;
+                    ToolCall call = new ToolCall();
+                    call.Id = id;
+                    call.Name = name;
+                    call.Arguments = arguments == null ? "{}" : arguments;
+                    result.AddToolCall(call);
+                }
+            }
+            if ((content == null || content.Length == 0) &&
+                result.ToolCalls.Count == 0)
+                content = "(The model returned no text.)";
+            result.Answer = content == null ? "" : content;
             Hashtable usage = Json.AsObject(root["usage"]);
             result.PromptTokens = Json.GetInt64(usage, "prompt_tokens");
             result.CompletionTokens = Json.GetInt64(usage, "completion_tokens");
@@ -115,27 +140,62 @@ namespace Harness98
             return false;
         }
 
-        private static string BuildChatRequest(string modelId, IList messages)
+        private static string BuildChatRequest(string modelId, IList messages,
+            string toolsJson)
         {
             StringBuilder json = new StringBuilder();
             json.Append("{\"model\":");
             json.Append(Json.Quote(modelId));
             json.Append(",\"stream\":false,\"usage\":{\"include\":true},");
+            if (toolsJson != null && toolsJson.Length > 0)
+            {
+                json.Append("\"tools\":");
+                json.Append(toolsJson);
+                json.Append(",\"parallel_tool_calls\":false,");
+            }
             json.Append("\"messages\":[");
 
             for (int i = 0; i < messages.Count; i++)
             {
                 if (i > 0) json.Append(',');
                 ChatMessage message = (ChatMessage)messages[i];
-                json.Append("{\"role\":");
-                json.Append(Json.Quote(message.Role));
-                json.Append(",\"content\":");
-                json.Append(Json.Quote(message.Content));
-                json.Append('}');
+                AppendMessage(json, message);
             }
 
             json.Append("]}");
             return json.ToString();
+        }
+
+        private static void AppendMessage(StringBuilder json, ChatMessage message)
+        {
+            json.Append("{\"role\":");
+            json.Append(Json.Quote(message.Role));
+            json.Append(",\"content\":");
+            json.Append(Json.Quote(message.Content == null ? "" : message.Content));
+            if (message.ToolCallId != null)
+            {
+                json.Append(",\"tool_call_id\":");
+                json.Append(Json.Quote(message.ToolCallId));
+            }
+            if (message.ToolCalls.Count > 0)
+            {
+                json.Append(",\"tool_calls\":[");
+                for (int i = 0; i < message.ToolCalls.Count; i++)
+                {
+                    if (i > 0) json.Append(',');
+                    ToolCall call = (ToolCall)message.ToolCalls[i];
+                    json.Append("{\"id\":");
+                    json.Append(Json.Quote(call.Id));
+                    json.Append(",\"type\":\"function\",\"function\":{");
+                    json.Append("\"name\":");
+                    json.Append(Json.Quote(call.Name));
+                    json.Append(",\"arguments\":");
+                    json.Append(Json.Quote(call.Arguments));
+                    json.Append("}}");
+                }
+                json.Append(']');
+            }
+            json.Append('}');
         }
 
         private static Hashtable ParseResponse(HttpResult response)

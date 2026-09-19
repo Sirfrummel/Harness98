@@ -8,7 +8,7 @@ namespace Harness98
 {
     public sealed class ConversationStore
     {
-        private const int FormatVersion = 1;
+        private const int FormatVersion = 2;
         private readonly string directory;
 
         public ConversationStore(string baseDirectory)
@@ -165,6 +165,33 @@ namespace Harness98
                 json.Append(Json.Quote(message.Role));
                 json.Append(",\"content\":");
                 json.Append(Json.Quote(message.Content));
+                if (message.ToolCallId != null)
+                {
+                    json.Append(",\"tool_call_id\":");
+                    json.Append(Json.Quote(message.ToolCallId));
+                }
+                if (message.ToolName != null)
+                {
+                    json.Append(",\"tool_name\":");
+                    json.Append(Json.Quote(message.ToolName));
+                }
+                if (message.ToolCalls.Count > 0)
+                {
+                    json.Append(",\"tool_calls\":[");
+                    for (int j = 0; j < message.ToolCalls.Count; j++)
+                    {
+                        if (j > 0) json.Append(',');
+                        ToolCall call = (ToolCall)message.ToolCalls[j];
+                        json.Append("{\"id\":");
+                        json.Append(Json.Quote(call.Id));
+                        json.Append(",\"name\":");
+                        json.Append(Json.Quote(call.Name));
+                        json.Append(",\"arguments\":");
+                        json.Append(Json.Quote(call.Arguments));
+                        json.Append('}');
+                    }
+                    json.Append(']');
+                }
                 json.Append('}');
             }
 
@@ -201,7 +228,26 @@ namespace Harness98
                 {
                     throw new FormatException("A conversation message is invalid.");
                 }
-                conversation.Add(role, content);
+                ChatMessage message = new ChatMessage(role, content);
+                message.ToolCallId = Json.GetString(item, "tool_call_id");
+                message.ToolName = Json.GetString(item, "tool_name");
+                ArrayList toolCalls = Json.AsArray(item["tool_calls"]);
+                if (toolCalls != null)
+                {
+                    for (int j = 0; j < toolCalls.Count; j++)
+                    {
+                        Hashtable savedCall = Json.AsObject(toolCalls[j]);
+                        ToolCall call = new ToolCall();
+                        call.Id = Json.GetString(savedCall, "id");
+                        call.Name = Json.GetString(savedCall, "name");
+                        call.Arguments = Json.GetString(savedCall, "arguments");
+                        if (call.Id == null || call.Name == null ||
+                            call.Arguments == null)
+                            throw new FormatException("A saved tool call is invalid.");
+                        message.AddToolCall(call);
+                    }
+                }
+                conversation.Add(message);
             }
 
             return conversation;

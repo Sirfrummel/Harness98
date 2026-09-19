@@ -12,6 +12,8 @@ public sealed class Tests
         Run("JSON strings", TestJsonStrings);
         Run("Model parsing and provider ordering", TestModels);
         Run("Chat history serialization", TestChat);
+        Run("Tool calling protocol", TestToolProtocol);
+        Run("Command execution and output capture", TestCommandExecution);
         Run("Content-part response", TestContentParts);
         Run("API error message", TestApiError);
         Run("Saved conversations", TestSavedConversations);
@@ -45,6 +47,7 @@ public sealed class Tests
             "\"description\":\"Multimodal\",\"architecture\":{" +
             "\"input_modalities\":[\"text\",\"image\"]," +
             "\"output_modalities\":[\"text\"]}," +
+            "\"supported_parameters\":[\"temperature\",\"tools\"]," +
             "\"pricing\":{\"prompt\":\"0.1\",\"completion\":\"0.2\"}}," +
             "{\"id\":\"a/model\",\"name\":\"Alpha\",\"context_length\":4096}]}" );
         OpenRouterClient client = new OpenRouterClient(transport);
@@ -56,6 +59,8 @@ public sealed class Tests
             throw new Exception("Image-input capability was not parsed.");
         if (((ModelInfo)models[0]).GeneratesImages)
             throw new Exception("Image-output capability was parsed incorrectly.");
+        if (!((ModelInfo)models[0]).SupportsTools)
+            throw new Exception("Tool capability was not parsed.");
     }
 
     private static void TestChat()
@@ -89,6 +94,73 @@ public sealed class Tests
         AssertEqual("3", sentMessages.Count.ToString());
         AssertEqual("first \"question\"\nline two",
             Json.GetString(Json.AsObject(sentMessages[0]), "content"));
+    }
+
+    private static void TestToolProtocol()
+    {
+        FakeTransport transport = new FakeTransport();
+        transport.PostResponse = Ok("{\"choices\":[{\"message\":{" +
+            "\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{" +
+            "\"id\":\"call-1\",\"type\":\"function\",\"function\":{" +
+            "\"name\":\"run_command\",\"arguments\":\"{\\\"command\\\":" +
+            "\\\"dir\\\"}\"}}]}}],\"usage\":{\"prompt_tokens\":10," +
+            "\"completion_tokens\":5,\"total_tokens\":15,\"cost\":0.0001}}");
+        OpenRouterClient client = new OpenRouterClient(transport);
+        ArrayList messages = new ArrayList();
+        messages.Add(new ChatMessage("user", "List files"));
+        ChatCompletion completion = client.SendChatWithUsage("key", "model",
+            messages, "[{\"type\":\"function\",\"function\":{" +
+            "\"name\":\"run_command\"}}]");
+        AssertEqual("1", completion.ToolCalls.Count.ToString());
+        ToolCall call = (ToolCall)completion.ToolCalls[0];
+        AssertEqual("call-1", call.Id);
+        AssertEqual("run_command", call.Name);
+
+        Hashtable request = Json.AsObject(Json.Parse(transport.LastPostBody));
+        AssertEqual("1", Json.AsArray(request["tools"]).Count.ToString());
+        if ((bool)request["parallel_tool_calls"])
+            throw new Exception("Parallel tool calls should be disabled.");
+
+        ChatMessage assistant = new ChatMessage("assistant", "");
+        assistant.AddToolCall(call);
+        messages.Add(assistant);
+        ChatMessage tool = new ChatMessage("tool", "{\"stdout\":\"file.txt\"}");
+        tool.ToolCallId = call.Id;
+        tool.ToolName = call.Name;
+        messages.Add(tool);
+        transport.PostResponse = Ok("{\"choices\":[{\"message\":{" +
+            "\"role\":\"assistant\",\"content\":\"Found file.txt\"}}]}");
+        client.SendChatWithUsage("key", "model", messages, "[]");
+        request = Json.AsObject(Json.Parse(transport.LastPostBody));
+        ArrayList sent = Json.AsArray(request["messages"]);
+        Hashtable sentAssistant = Json.AsObject(sent[1]);
+        Hashtable sentTool = Json.AsObject(sent[2]);
+        AssertEqual("call-1", Json.GetString(sentTool, "tool_call_id"));
+        AssertEqual("1", Json.AsArray(sentAssistant["tool_calls"]).Count.ToString());
+    }
+
+    private static void TestCommandExecution()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "Harness98CommandTests-" +
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            CommandTool tool = new CommandTool(root);
+            if (Json.AsObject(Json.Parse(tool.DefinitionJson)) == null)
+                throw new Exception("Command tool definition is invalid.");
+            string resultText = tool.Execute(
+                "{\"command\":\"echo HARNESS98_TOOL_TEST\"}");
+            Hashtable result = Json.AsObject(Json.Parse(resultText));
+            AssertEqual("0", Json.GetInt64(result, "exit_code").ToString());
+            string output = Json.GetString(result, "stdout");
+            if (output == null || output.IndexOf("HARNESS98_TOOL_TEST") < 0)
+                throw new Exception("Command output was not captured: " + resultText);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
     }
 
     private static void TestContentParts()
@@ -136,14 +208,31 @@ public sealed class Tests
             Conversation first = store.Create("provider/first-model");
             first.Add("user", "A saved question with a snowman \u2603");
             first.Add("assistant", "A saved answer");
+            ChatMessage toolRequest = new ChatMessage("assistant", "");
+            ToolCall savedCall = new ToolCall();
+            savedCall.Id = "call-saved";
+            savedCall.Name = "run_command";
+            savedCall.Arguments = "{\"command\":\"dir\"}";
+            toolRequest.AddToolCall(savedCall);
+            first.Add(toolRequest);
+            ChatMessage toolResult = new ChatMessage("tool",
+                "{\"stdout\":\"README.TXT\"}");
+            toolResult.ToolCallId = savedCall.Id;
+            toolResult.ToolName = savedCall.Name;
+            first.Add(toolResult);
             store.Save(first);
 
             Conversation loaded = store.Load(first.Id.ToLower());
             AssertEqual("C000001", loaded.Id);
             AssertEqual("provider/first-model", loaded.ModelId);
-            AssertEqual("2", loaded.Count.ToString());
+            AssertEqual("4", loaded.Count.ToString());
             AssertEqual("A saved question with a snowman \u2603",
                 ((ChatMessage)loaded.Messages[0]).Content);
+            ChatMessage loadedRequest = (ChatMessage)loaded.Messages[2];
+            ChatMessage loadedResult = (ChatMessage)loaded.Messages[3];
+            AssertEqual("call-saved",
+                ((ToolCall)loadedRequest.ToolCalls[0]).Id);
+            AssertEqual("call-saved", loadedResult.ToolCallId);
             AssertEqual("A saved question with a snowman \u2603", loaded.Title);
 
             Conversation empty = store.Create("provider/empty-model");

@@ -14,6 +14,7 @@ GUI FEATURES
 - Optional session cost and token toolbar under the View menu
 - Toggleable conversation sidebar and New Conversation command
 - Reusable model picker with text, vision-input, and image-output filters
+- Tool-capable model filter and COMMAND.COM command execution
 - OpenRouter's original model ordering is preserved
 - Settings for API key, update server, and automatic conversation titles
 - Background requests with a replaceable status message
@@ -23,6 +24,15 @@ GUI FEATURES
 The capability filters describe models advertised by OpenRouter.  Harness98
 currently sends text messages only; image attachment and response
 handling are future harness features.
+
+COMMAND TOOL
+------------
+
+Models advertised by OpenRouter as supporting tools receive a run_command
+tool.  Commands run through the COMSPEC command interpreter (COMMAND.COM on
+Windows 98) with a 30-second timeout.  Harness98 returns the exit code and up
+to 16 KB each of standard output and error output to the model.  Tool requests
+and results are retained in saved conversations.
 
 AUTOMATIC TITLES
 ----------------

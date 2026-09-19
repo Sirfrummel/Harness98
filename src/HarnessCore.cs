@@ -74,25 +74,23 @@ namespace Harness98
             if (conversation == null || model == null)
                 throw new ArgumentNullException("conversation");
             bool firstTurn = conversation.Count == 0;
+            int originalCount = conversation.Count;
             conversation.Add("user", text);
-            ChatCompletion completion;
+            ChatResult result;
             try
             {
-                completion = client.SendChatWithUsage(ApiKey, model.Id,
-                    conversation.Messages);
+                AgentRunner runner = new AgentRunner(client, ApiKey, baseDirectory);
+                result = runner.Run(model, conversation);
             }
             catch
             {
-                conversation.RemoveLast();
+                conversation.Truncate(originalCount);
                 throw;
             }
 
-            conversation.Add("assistant", completion.Answer);
+            conversation.Add("assistant", result.Answer);
             conversation.ModelId = model.Id;
 
-            ChatResult result = new ChatResult();
-            result.Answer = completion.Answer;
-            AddUsage(result, completion);
             try
             {
                 Conversations.Save(conversation);
