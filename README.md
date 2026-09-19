@@ -42,6 +42,7 @@ choosing the larger harness architecture.
 - `BUILD3.BAT`, `RUN3.BAT`, and `V3README.TXT` — Harness98 v3 build,
   update-aware launcher, and target-machine instructions
 - `updater/` — the small restart-time update installer
+- `gui-probe/` — standalone Windows Forms compatibility probe for the 3.1 line
 - `vendor/libcurl-win98/` — matched managed/native DLL dependency set
 - `probe/` — source and batch file for the original .NET connectivity probe
 - `curl-probe/` — known-working curl/OpenSSL TLS 1.2 connectivity probe
@@ -105,3 +106,11 @@ asks the user to restart. `RUN3.BAT` invokes the separate updater before launch,
 allowing loaded program files to be replaced safely. Replaced files are backed
 up, while credentials, configuration, and conversations are protected from the
 update manifest.
+
+## Versioning
+
+Harness98 uses `major.minor.patch` version numbers. During rapid development,
+substantial experiments and feature groups normally advance the minor version;
+compatible fixes advance the patch version. Major versions are reserved for a
+fundamental change to the program or its compatibility contract. The current
+CLI release is 3.0.0, and the Windows Forms work is the 3.1 line.

@@ -1,0 +1,9 @@
+/nologo
+/target:winexe
+/platform:x86
+/optimize+
+/reference:System.dll
+/reference:System.Drawing.dll
+/reference:System.Windows.Forms.dll
+/out:H98GUI.EXE
+GUIPROBE.CS

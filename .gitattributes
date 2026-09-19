@@ -5,6 +5,7 @@
 *.BAT text eol=crlf
 *.cs text eol=crlf
 *.TXT text eol=crlf
+*.RSP text eol=crlf
 
 # Repository documentation and certificate data use LF internally.
 *.md text eol=lf
