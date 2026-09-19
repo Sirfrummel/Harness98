@@ -18,6 +18,8 @@ namespace Harness98.Gui
         private readonly Button sendButton;
         private readonly Button newButton;
         private readonly Button modelButton;
+        private readonly Button hideChatsButton;
+        private readonly Button showChatsButton;
         private readonly StatusBar status;
         private readonly BackgroundWorker startupWorker;
         private readonly BackgroundWorker chatWorker;
@@ -88,20 +90,21 @@ namespace Harness98.Gui
             newButton.Click += new EventHandler(NewConversation);
             mainSplit.Panel1.Controls.Add(newButton);
 
-            Button hideChats = new Button();
-            hideChats.Text = "<<";
-            hideChats.Location = new Point(154, 7);
-            hideChats.Size = new Size(48, 27);
-            hideChats.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            hideChats.Click += new EventHandler(ToggleConversations);
-            mainSplit.Panel1.Controls.Add(hideChats);
+            hideChatsButton = new Button();
+            hideChatsButton.Text = "<<";
+            hideChatsButton.Location = new Point(154, 7);
+            hideChatsButton.Size = new Size(48, 27);
+            hideChatsButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            hideChatsButton.Click += new EventHandler(ToggleConversations);
+            mainSplit.Panel1.Controls.Add(hideChatsButton);
 
-            Button showChats = new Button();
-            showChats.Text = "Chats >>";
-            showChats.Location = new Point(8, 7);
-            showChats.Size = new Size(72, 27);
-            showChats.Click += new EventHandler(ToggleConversations);
-            mainSplit.Panel2.Controls.Add(showChats);
+            showChatsButton = new Button();
+            showChatsButton.Text = "Chats >>";
+            showChatsButton.Location = new Point(8, 7);
+            showChatsButton.Size = new Size(72, 27);
+            showChatsButton.Click += new EventHandler(ToggleConversations);
+            mainSplit.Panel2.Controls.Add(showChatsButton);
+            UpdateConversationToggleButtons();
 
             Label modelLabel = MakeLabel("Model:", 88, 13);
             mainSplit.Panel2.Controls.Add(modelLabel);
@@ -247,18 +250,21 @@ namespace Harness98.Gui
 
         private bool CreateNewConversation()
         {
-            ModelPickerDialog picker = new ModelPickerDialog(core.Models, activeModel);
-            if (picker.ShowDialog(this) != DialogResult.OK)
+            if (activeModel == null)
             {
+                ModelPickerDialog picker = new ModelPickerDialog(core.Models, null);
+                if (picker.ShowDialog(this) != DialogResult.OK)
+                {
+                    picker.Dispose();
+                    return false;
+                }
+                activeModel = picker.SelectedModel;
                 picker.Dispose();
-                return false;
             }
-            activeModel = picker.SelectedModel;
-            picker.Dispose();
             activeConversation = core.NewConversation(activeModel.Id);
             RefreshConversationList();
-            SelectConversationInList(activeConversation.Id);
             RenderConversation();
+            prompt.Focus();
             return true;
         }
 
@@ -485,6 +491,13 @@ namespace Harness98.Gui
         private void ToggleConversations(object sender, EventArgs e)
         {
             mainSplit.Panel1Collapsed = !mainSplit.Panel1Collapsed;
+            UpdateConversationToggleButtons();
+        }
+
+        private void UpdateConversationToggleButtons()
+        {
+            hideChatsButton.Visible = !mainSplit.Panel1Collapsed;
+            showChatsButton.Visible = mainSplit.Panel1Collapsed;
         }
 
         private void ShowSettings(object sender, EventArgs e)
