@@ -57,6 +57,7 @@ namespace Harness98
     public enum AgentProgressType
     {
         ModelRequestStarted,
+        UsageReceived,
         ToolStarted,
         ToolCompleted
     }
@@ -67,6 +68,10 @@ namespace Harness98
         public int Iteration;
         public ToolCall ToolCall;
         public string ToolResult;
+        public long PromptTokens;
+        public long CompletionTokens;
+        public long TotalTokens;
+        public double Cost;
     }
 
     public interface IAgentProgressSink
@@ -152,6 +157,7 @@ namespace Harness98
         public long CompletionTokens;
         public long TotalTokens;
         public double Cost;
+        public bool HasCost;
 
         public IList ToolCalls
         {

@@ -32,7 +32,8 @@ namespace Harness98
     public sealed class CommandTool
     {
         private const int TimeoutMilliseconds = 30000;
-        private const int MaximumCharactersPerStream = 16384;
+        private const int MaximumStandardOutputCharacters = 8192;
+        private const int MaximumStandardErrorCharacters = 2048;
         private readonly string defaultWorkingDirectory;
 
         public CommandTool(string workingDirectory)
@@ -82,9 +83,9 @@ namespace Harness98
             }
 
             BoundedText standardOutput = new BoundedText(
-                MaximumCharactersPerStream);
+                MaximumStandardOutputCharacters);
             BoundedText standardError = new BoundedText(
-                MaximumCharactersPerStream);
+                MaximumStandardErrorCharacters);
             int exitCode = -1;
             bool timedOut = false;
             try

@@ -91,7 +91,16 @@ namespace Harness98
             }
             catch
             {
-                conversation.Truncate(originalCount);
+                if (conversation.Count <= originalCount + 1)
+                {
+                    conversation.Truncate(originalCount);
+                }
+                else
+                {
+                    conversation.ModelId = model.Id;
+                    try { Conversations.Save(conversation); }
+                    catch { }
+                }
                 throw;
             }
 
@@ -111,7 +120,7 @@ namespace Harness98
                 try
                 {
                     result.GeneratedTitle = GenerateTitle(conversation, model,
-                        result);
+                        result, progress);
                 }
                 catch
                 {
@@ -122,7 +131,7 @@ namespace Harness98
         }
 
         private string GenerateTitle(Conversation conversation, ModelInfo chatModel,
-            ChatResult result)
+            ChatResult result, IAgentProgressSink progress)
         {
             ModelInfo titleModel = FindModel(Configuration.TitleModelId);
             if (titleModel == null) titleModel = chatModel;
@@ -134,7 +143,9 @@ namespace Harness98
             messages.Add(new ChatMessage("user", first.Content));
             ChatCompletion completion = client.SendChatWithUsage(ApiKey,
                 titleModel.Id, messages);
+            AgentRunner.ApplyCostFallback(completion, titleModel);
             AddUsage(result, completion);
+            ReportUsage(progress, completion);
             string title = completion.Answer.Trim();
             title = title.Replace('\r', ' ').Replace('\n', ' ').Trim(' ', '"');
             if (title.Length > 60) title = title.Substring(0, 57) + "...";
@@ -153,6 +164,19 @@ namespace Harness98
             total.CompletionTokens += usage.CompletionTokens;
             total.TotalTokens += usage.TotalTokens;
             total.Cost += usage.Cost;
+        }
+
+        private static void ReportUsage(IAgentProgressSink progress,
+            ChatCompletion usage)
+        {
+            if (progress == null) return;
+            AgentProgress update = new AgentProgress();
+            update.Type = AgentProgressType.UsageReceived;
+            update.PromptTokens = usage.PromptTokens;
+            update.CompletionTokens = usage.CompletionTokens;
+            update.TotalTokens = usage.TotalTokens;
+            update.Cost = usage.Cost;
+            progress.Report(update);
         }
 
         public void Dispose()

@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
 
@@ -12,6 +13,13 @@ namespace Harness98.Gui
 {
     public sealed class MainForm : Form
     {
+        private const int WmVScroll = 0x0115;
+        private const int SbBottom = 7;
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr window, int message,
+            IntPtr parameter, IntPtr data);
+
         private readonly HarnessCore core;
         private readonly ListBox conversations;
         private readonly SplitContainer mainSplit;
@@ -423,13 +431,22 @@ namespace Harness98.Gui
             ChatWork work = (ChatWork)e.Argument;
             BackgroundWorker worker = (BackgroundWorker)sender;
             work.Result = core.SendMessage(work.Conversation, work.Model, work.Text,
-                new BackgroundAgentProgressSink(worker));
+                new BackgroundAgentProgressSink(worker, work));
             e.Result = work;
         }
 
         private void ChatProgressChanged(object sender, ProgressChangedEventArgs e)
         {
             AgentProgress progress = (AgentProgress)e.UserState;
+            if (progress.Type == AgentProgressType.UsageReceived)
+            {
+                sessionPromptTokens += progress.PromptTokens;
+                sessionCompletionTokens += progress.CompletionTokens;
+                sessionTotalTokens += progress.TotalTokens;
+                sessionCost += progress.Cost;
+                UpdateCostToolbar();
+                return;
+            }
             if (progress.Type == AgentProgressType.ModelRequestStarted)
             {
                 status.Text = "Waiting for " + activeModel.Name + " (round " +
@@ -462,14 +479,18 @@ namespace Harness98.Gui
                 MessageBox.Show(this, e.Error.Message, "OpenRouter request failed",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 RenderConversation();
+                RefreshConversationList();
                 return;
             }
             ChatWork work = (ChatWork)e.Result;
             activeConversation = work.Conversation;
-            sessionPromptTokens += work.Result.PromptTokens;
-            sessionCompletionTokens += work.Result.CompletionTokens;
-            sessionTotalTokens += work.Result.TotalTokens;
-            sessionCost += work.Result.Cost;
+            sessionPromptTokens += Math.Max(0, work.Result.PromptTokens -
+                work.ReportedPromptTokens);
+            sessionCompletionTokens += Math.Max(0, work.Result.CompletionTokens -
+                work.ReportedCompletionTokens);
+            sessionTotalTokens += Math.Max(0, work.Result.TotalTokens -
+                work.ReportedTotalTokens);
+            sessionCost += Math.Max(0, work.Result.Cost - work.ReportedCost);
             UpdateCostToolbar();
             RenderConversation();
             RefreshConversationList();
@@ -514,8 +535,7 @@ namespace Harness98.Gui
             }
             rtf.Append('}');
             transcript.Rtf = rtf.ToString();
-            transcript.SelectionStart = transcript.TextLength;
-            transcript.ScrollToCaret();
+            ScrollTranscriptToEnd();
             modelName.Text = activeModel == null ? "" :
                 activeModel.Name + "  (" + activeModel.Id + ")";
             string title = activeConversation.Title.Length == 0 ?
@@ -588,7 +608,7 @@ namespace Harness98.Gui
                 if (result["output_truncated"] is bool &&
                     (bool)result["output_truncated"])
                     text.Append("\r\n[Output was truncated]");
-                return LimitDisplayText(text.ToString(), 4096);
+                return LimitDisplayText(text.ToString(), 2048);
             }
             catch
             {
@@ -611,9 +631,8 @@ namespace Harness98.Gui
             transcript.AppendText("\r\n\r\n" + heading + "\r\n");
             transcript.SelectionFont = transcript.Font;
             transcript.SelectionColor = transcript.ForeColor;
-            transcript.AppendText(LimitDisplayText(body, 4096));
-            transcript.SelectionStart = transcript.TextLength;
-            transcript.ScrollToCaret();
+            transcript.AppendText(LimitDisplayText(body, 2048));
+            ScrollTranscriptToEnd();
         }
 
         private void AppendPendingUser(string text)
@@ -625,8 +644,17 @@ namespace Harness98.Gui
             transcript.SelectionFont = transcript.Font;
             transcript.SelectionColor = transcript.ForeColor;
             transcript.AppendText(text);
+            ScrollTranscriptToEnd();
+        }
+
+        private void ScrollTranscriptToEnd()
+        {
             transcript.SelectionStart = transcript.TextLength;
+            transcript.SelectionLength = 0;
             transcript.ScrollToCaret();
+            if (transcript.IsHandleCreated)
+                SendMessage(transcript.Handle, WmVScroll,
+                    new IntPtr(SbBottom), IntPtr.Zero);
         }
 
         private static string RtfEncode(string text)
@@ -806,19 +834,33 @@ namespace Harness98.Gui
             public ModelInfo Model;
             public string Text;
             public ChatResult Result;
+            public long ReportedPromptTokens;
+            public long ReportedCompletionTokens;
+            public long ReportedTotalTokens;
+            public double ReportedCost;
         }
 
         private sealed class BackgroundAgentProgressSink : IAgentProgressSink
         {
             private readonly BackgroundWorker worker;
+            private readonly ChatWork work;
 
-            public BackgroundAgentProgressSink(BackgroundWorker backgroundWorker)
+            public BackgroundAgentProgressSink(BackgroundWorker backgroundWorker,
+                ChatWork chatWork)
             {
                 worker = backgroundWorker;
+                work = chatWork;
             }
 
             public void Report(AgentProgress progress)
             {
+                if (progress.Type == AgentProgressType.UsageReceived)
+                {
+                    work.ReportedPromptTokens += progress.PromptTokens;
+                    work.ReportedCompletionTokens += progress.CompletionTokens;
+                    work.ReportedTotalTokens += progress.TotalTokens;
+                    work.ReportedCost += progress.Cost;
+                }
                 worker.ReportProgress(0, progress);
             }
         }

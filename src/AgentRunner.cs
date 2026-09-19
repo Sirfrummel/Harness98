@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Globalization;
 
 namespace Harness98
 {
@@ -33,7 +34,9 @@ namespace Harness98
                 ArrayList messages = BuildMessages(conversation, toolsEnabled);
                 ChatCompletion completion = client.SendChatWithUsage(apiKey,
                     model.Id, messages, toolsEnabled ? tools.DefinitionsJson : null);
+                ApplyCostFallback(completion, model);
                 AddUsage(total, completion);
+                ReportUsage(completion, iteration + 1);
 
                 if (completion.ToolCalls.Count == 0)
                 {
@@ -62,8 +65,24 @@ namespace Harness98
                 }
             }
 
-            throw new ApplicationException("The model reached the maximum of " +
-                MaximumIterations.ToString() + " tool-call rounds.");
+            ArrayList finalMessages = BuildMessages(conversation, toolsEnabled);
+            finalMessages.Add(new ChatMessage("system",
+                "The maximum of " + MaximumIterations.ToString() +
+                " tool-call rounds has been reached. Do not request any more " +
+                "tools. Respond to the user now using the information already " +
+                "collected, and briefly mention any work that remains."));
+            Report(AgentProgressType.ModelRequestStarted,
+                MaximumIterations + 1, null, null);
+            ChatCompletion finalCompletion = client.SendChatWithUsage(apiKey,
+                model.Id, finalMessages, toolsEnabled ? tools.DefinitionsJson : null,
+                toolsEnabled);
+            ApplyCostFallback(finalCompletion, model);
+            AddUsage(total, finalCompletion);
+            ReportUsage(finalCompletion, MaximumIterations + 1);
+            total.Answer = finalCompletion.Answer.Length == 0 ?
+                "The tool-call limit was reached before the model produced a " +
+                "final response." : finalCompletion.Answer;
+            return total;
         }
 
         private void Report(AgentProgressType type, int iteration,
@@ -76,6 +95,34 @@ namespace Harness98
             update.ToolCall = call;
             update.ToolResult = result;
             progress.Report(update);
+        }
+
+        private void ReportUsage(ChatCompletion completion, int iteration)
+        {
+            if (progress == null) return;
+            AgentProgress update = new AgentProgress();
+            update.Type = AgentProgressType.UsageReceived;
+            update.Iteration = iteration;
+            update.PromptTokens = completion.PromptTokens;
+            update.CompletionTokens = completion.CompletionTokens;
+            update.TotalTokens = completion.TotalTokens;
+            update.Cost = completion.Cost;
+            progress.Report(update);
+        }
+
+        public static void ApplyCostFallback(ChatCompletion completion,
+            ModelInfo model)
+        {
+            if (completion.HasCost) return;
+            double promptPrice;
+            double completionPrice;
+            if (!Double.TryParse(model.PromptPrice, NumberStyles.Float,
+                CultureInfo.InvariantCulture, out promptPrice)) promptPrice = 0;
+            if (!Double.TryParse(model.CompletionPrice, NumberStyles.Float,
+                CultureInfo.InvariantCulture, out completionPrice))
+                completionPrice = 0;
+            completion.Cost = completion.PromptTokens * promptPrice +
+                completion.CompletionTokens * completionPrice;
         }
 
         private ArrayList BuildMessages(Conversation conversation,

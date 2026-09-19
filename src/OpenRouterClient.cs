@@ -80,7 +80,14 @@ namespace Harness98
         public ChatCompletion SendChatWithUsage(string apiKey, string modelId,
             IList messages, string toolsJson)
         {
-            string request = BuildChatRequest(modelId, messages, toolsJson);
+            return SendChatWithUsage(apiKey, modelId, messages, toolsJson, false);
+        }
+
+        public ChatCompletion SendChatWithUsage(string apiKey, string modelId,
+            IList messages, string toolsJson, bool disableToolCalls)
+        {
+            string request = BuildChatRequest(modelId, messages, toolsJson,
+                disableToolCalls);
             HttpResult response = transport.PostJson(ChatUrl, request, apiKey);
             Hashtable root = ParseResponse(response);
             ArrayList choices = Json.AsArray(root["choices"]);
@@ -126,6 +133,7 @@ namespace Harness98
             result.CompletionTokens = Json.GetInt64(usage, "completion_tokens");
             result.TotalTokens = Json.GetInt64(usage, "total_tokens");
             result.Cost = Json.GetDouble(usage, "cost");
+            result.HasCost = usage != null && usage.ContainsKey("cost");
             return result;
         }
 
@@ -141,7 +149,7 @@ namespace Harness98
         }
 
         private static string BuildChatRequest(string modelId, IList messages,
-            string toolsJson)
+            string toolsJson, bool disableToolCalls)
         {
             StringBuilder json = new StringBuilder();
             json.Append("{\"model\":");
@@ -152,6 +160,8 @@ namespace Harness98
                 json.Append("\"tools\":");
                 json.Append(toolsJson);
                 json.Append(",\"parallel_tool_calls\":false,");
+                if (disableToolCalls)
+                    json.Append("\"tool_choice\":\"none\",");
             }
             json.Append("\"messages\":[");
 

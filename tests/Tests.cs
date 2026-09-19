@@ -15,6 +15,8 @@ public sealed class Tests
         Run("Tool calling protocol", TestToolProtocol);
         Run("Command execution and output capture", TestCommandExecution);
         Run("Live agent progress", TestAgentProgress);
+        Run("Tool limit final response", TestToolLimitFinalResponse);
+        Run("Usage cost fallback", TestUsageCostFallback);
         Run("Content-part response", TestContentParts);
         Run("API error message", TestApiError);
         Run("Saved conversations", TestSavedConversations);
@@ -85,6 +87,8 @@ public sealed class Tests
         AssertEqual("168", completion.TotalTokens.ToString());
         AssertEqual("0.001234", completion.Cost.ToString(
             System.Globalization.CultureInfo.InvariantCulture));
+        if (!completion.HasCost)
+            throw new Exception("Returned usage cost was not detected.");
 
         Hashtable request = Json.AsObject(Json.Parse(transport.LastPostBody));
         AssertEqual("test/model", Json.GetString(request, "model"));
@@ -163,9 +167,13 @@ public sealed class Tests
             "\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{" +
             "\"id\":\"agent-call\",\"type\":\"function\",\"function\":{" +
             "\"name\":\"run_command\",\"arguments\":" +
-            "\"{\\\"command\\\":\\\"echo LIVE_PROGRESS\\\"}\"}}]}}]}"));
+            "\"{\\\"command\\\":\\\"echo LIVE_PROGRESS\\\"}\"}}]}}]," +
+            "\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":5," +
+            "\"total_tokens\":15,\"cost\":0.001}}"));
         transport.PostResponses.Add(Ok("{\"choices\":[{\"message\":{" +
-            "\"role\":\"assistant\",\"content\":\"Command completed.\"}}]}"));
+            "\"role\":\"assistant\",\"content\":\"Command completed.\"}}]," +
+            "\"usage\":{\"prompt_tokens\":20,\"completion_tokens\":6," +
+            "\"total_tokens\":26,\"cost\":0.002}}"));
         OpenRouterClient client = new OpenRouterClient(transport);
         ModelInfo model = new ModelInfo();
         model.Id = "test/tool-model";
@@ -178,19 +186,77 @@ public sealed class Tests
         ChatResult result = runner.Run(model, conversation);
 
         AssertEqual("Command completed.", result.Answer);
-        AssertEqual("4", progress.Events.Count.ToString());
+        AssertEqual("6", progress.Events.Count.ToString());
+        AssertEqual("0.003", result.Cost.ToString(
+            System.Globalization.CultureInfo.InvariantCulture));
         AssertEqual(AgentProgressType.ModelRequestStarted.ToString(),
             ((AgentProgress)progress.Events[0]).Type.ToString());
-        AssertEqual(AgentProgressType.ToolStarted.ToString(),
+        AssertEqual(AgentProgressType.UsageReceived.ToString(),
             ((AgentProgress)progress.Events[1]).Type.ToString());
-        AgentProgress completed = (AgentProgress)progress.Events[2];
+        AssertEqual(AgentProgressType.ToolStarted.ToString(),
+            ((AgentProgress)progress.Events[2]).Type.ToString());
+        AgentProgress completed = (AgentProgress)progress.Events[3];
         AssertEqual(AgentProgressType.ToolCompleted.ToString(),
             completed.Type.ToString());
         Hashtable commandResult = Json.AsObject(Json.Parse(completed.ToolResult));
         if (Json.GetString(commandResult, "stdout").IndexOf("LIVE_PROGRESS") < 0)
             throw new Exception("Live progress did not contain command output.");
         AssertEqual(AgentProgressType.ModelRequestStarted.ToString(),
-            ((AgentProgress)progress.Events[3]).Type.ToString());
+            ((AgentProgress)progress.Events[4]).Type.ToString());
+        AssertEqual(AgentProgressType.UsageReceived.ToString(),
+            ((AgentProgress)progress.Events[5]).Type.ToString());
+    }
+
+    private static void TestToolLimitFinalResponse()
+    {
+        FakeTransport transport = new FakeTransport();
+        for (int i = 0; i < 10; i++)
+        {
+            transport.PostResponses.Add(Ok("{\"choices\":[{\"message\":{" +
+                "\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{" +
+                "\"id\":\"limit-" + i.ToString() + "\",\"type\":\"function\"," +
+                "\"function\":{\"name\":\"unknown_test_tool\"," +
+                "\"arguments\":\"{}\"}}]}}]}"));
+        }
+        transport.PostResponses.Add(Ok("{\"choices\":[{\"message\":{" +
+            "\"role\":\"assistant\",\"content\":\"Here is my final summary.\"}}]}"));
+        OpenRouterClient client = new OpenRouterClient(transport);
+        ModelInfo model = new ModelInfo();
+        model.Id = "test/limit-model";
+        model.Name = "Limit model";
+        model.SupportsTools = true;
+        Conversation conversation = new Conversation();
+        conversation.Add("user", "Use many tools");
+        AgentRunner runner = new AgentRunner(client, "key", Path.GetTempPath(),
+            null);
+        ChatResult result = runner.Run(model, conversation);
+
+        AssertEqual("Here is my final summary.", result.Answer);
+        AssertEqual("21", conversation.Count.ToString());
+        Hashtable finalRequest = Json.AsObject(Json.Parse(transport.LastPostBody));
+        AssertEqual("none", Json.GetString(finalRequest, "tool_choice"));
+    }
+
+    private static void TestUsageCostFallback()
+    {
+        FakeTransport transport = new FakeTransport();
+        transport.PostResponse = Ok("{\"choices\":[{\"message\":{" +
+            "\"role\":\"assistant\",\"content\":\"answer\"}}]," +
+            "\"usage\":{\"prompt_tokens\":2,\"completion_tokens\":1," +
+            "\"total_tokens\":3}}" );
+        OpenRouterClient client = new OpenRouterClient(transport);
+        ModelInfo model = new ModelInfo();
+        model.Id = "test/priced-model";
+        model.Name = "Priced model";
+        model.PromptPrice = "0.000001";
+        model.CompletionPrice = "0.000002";
+        Conversation conversation = new Conversation();
+        conversation.Add("user", "test");
+        AgentRunner runner = new AgentRunner(client, "key", Path.GetTempPath(),
+            null);
+        ChatResult result = runner.Run(model, conversation);
+        AssertEqual("0.000004", result.Cost.ToString("0.000000",
+            System.Globalization.CultureInfo.InvariantCulture));
     }
 
     private static void TestContentParts()

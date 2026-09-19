@@ -31,9 +31,11 @@ COMMAND TOOL
 
 Models advertised by OpenRouter as supporting tools receive a run_command
 tool.  Commands run through the COMSPEC command interpreter (COMMAND.COM on
-Windows 98) with a 30-second timeout.  Harness98 returns the exit code and up
-to 16 KB each of standard output and error output to the model.  Tool requests
-and results are retained in saved conversations.
+Windows 98) with a 30-second timeout.  Harness98 returns the exit code, up to
+8 KB of standard output, and up to 2 KB of error output to the model.  The GUI
+shows a 2 KB preview.  Tool requests and results are retained in saved
+conversations.  After ten tool rounds, Harness98 asks the model for a final
+answer with further tool calls disabled.
 
 AUTOMATIC TITLES
 ----------------
