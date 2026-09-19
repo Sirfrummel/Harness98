@@ -125,6 +125,7 @@ namespace Harness98
                     }
                     if (!timedOut || process.HasExited)
                     {
+                        process.WaitForExit();
                         try { exitCode = process.ExitCode; }
                         catch { exitCode = -1; }
                     }

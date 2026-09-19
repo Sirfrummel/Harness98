@@ -294,6 +294,8 @@ namespace Harness98
                     {
                         Console.WriteLine("Checking for updates...");
                         Console.WriteLine(core.Updates.CheckAndStage());
+                        if (core.Updates.HasStagedUpdate)
+                            Console.WriteLine("Exit and launch HARNESS98.EXE to apply it.");
                     }
                     catch (Exception ex)
                     {
@@ -312,7 +314,7 @@ namespace Harness98
                     Console.WriteLine();
                     Console.WriteLine("Waiting for " + session.Model.Name + "...");
                     ChatResult result = core.SendMessage(session.Conversation,
-                        session.Model, input);
+                        session.Model, input, new ConsoleAgentProgressSink());
                     Console.WriteLine();
                     Console.WriteLine("Assistant> " + result.Answer);
                     if (result.GeneratedTitle != null)
@@ -363,6 +365,59 @@ namespace Harness98
             {
                 Model = model;
                 Conversation = conversation;
+            }
+        }
+
+        private sealed class ConsoleAgentProgressSink : IAgentProgressSink
+        {
+            public void Report(AgentProgress progress)
+            {
+                if (progress.Type == AgentProgressType.ToolStarted)
+                {
+                    Console.WriteLine();
+                    Console.WriteLine("Command: " + ReadCommand(
+                        progress.ToolCall.Arguments));
+                }
+                else if (progress.Type == AgentProgressType.ToolCompleted)
+                {
+                    Console.WriteLine(FormatToolResult(progress.ToolResult));
+                    Console.WriteLine("Returning command output to the model...");
+                }
+            }
+
+            private static string ReadCommand(string arguments)
+            {
+                try
+                {
+                    Hashtable values = Json.AsObject(Json.Parse(arguments));
+                    string command = Json.GetString(values, "command");
+                    return command == null ? arguments : command;
+                }
+                catch
+                {
+                    return arguments;
+                }
+            }
+
+            private static string FormatToolResult(string resultText)
+            {
+                try
+                {
+                    Hashtable result = Json.AsObject(Json.Parse(resultText));
+                    string error = Json.GetString(result, "error");
+                    if (error != null) return "Tool error: " + error;
+                    string output = Json.GetString(result, "stdout");
+                    string errors = Json.GetString(result, "stderr");
+                    string text = output == null ? "" : output.TrimEnd();
+                    if (errors != null && errors.Length > 0)
+                        text += "\r\nError output:\r\n" + errors.TrimEnd();
+                    return text + "\r\nExit code: " +
+                        Json.GetInt64(result, "exit_code").ToString();
+                }
+                catch
+                {
+                    return resultText;
+                }
             }
         }
     }

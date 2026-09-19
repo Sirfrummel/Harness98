@@ -14,6 +14,7 @@ public sealed class Tests
         Run("Chat history serialization", TestChat);
         Run("Tool calling protocol", TestToolProtocol);
         Run("Command execution and output capture", TestCommandExecution);
+        Run("Live agent progress", TestAgentProgress);
         Run("Content-part response", TestContentParts);
         Run("API error message", TestApiError);
         Run("Saved conversations", TestSavedConversations);
@@ -141,26 +142,55 @@ public sealed class Tests
 
     private static void TestCommandExecution()
     {
-        string root = Path.Combine(Path.GetTempPath(), "Harness98CommandTests-" +
-            Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(root);
-        try
-        {
-            CommandTool tool = new CommandTool(root);
-            if (Json.AsObject(Json.Parse(tool.DefinitionJson)) == null)
-                throw new Exception("Command tool definition is invalid.");
-            string resultText = tool.Execute(
-                "{\"command\":\"echo HARNESS98_TOOL_TEST\"}");
-            Hashtable result = Json.AsObject(Json.Parse(resultText));
-            AssertEqual("0", Json.GetInt64(result, "exit_code").ToString());
-            string output = Json.GetString(result, "stdout");
-            if (output == null || output.IndexOf("HARNESS98_TOOL_TEST") < 0)
-                throw new Exception("Command output was not captured: " + resultText);
-        }
-        finally
-        {
-            if (Directory.Exists(root)) Directory.Delete(root, true);
-        }
+        string root = Path.GetTempPath();
+        CommandTool tool = new CommandTool(root);
+        if (Json.AsObject(Json.Parse(tool.DefinitionJson)) == null)
+            throw new Exception("Command tool definition is invalid.");
+        string resultText = tool.Execute(
+            "{\"command\":\"echo HARNESS98_TOOL_TEST\"}");
+        Hashtable result = Json.AsObject(Json.Parse(resultText));
+        AssertEqual("0", Json.GetInt64(result, "exit_code").ToString());
+        string output = Json.GetString(result, "stdout");
+        if (output == null || output.IndexOf("HARNESS98_TOOL_TEST") < 0)
+            throw new Exception("Command output was not captured: " + resultText);
+    }
+
+    private static void TestAgentProgress()
+    {
+        string root = Path.GetTempPath();
+        FakeTransport transport = new FakeTransport();
+        transport.PostResponses.Add(Ok("{\"choices\":[{\"message\":{" +
+            "\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{" +
+            "\"id\":\"agent-call\",\"type\":\"function\",\"function\":{" +
+            "\"name\":\"run_command\",\"arguments\":" +
+            "\"{\\\"command\\\":\\\"echo LIVE_PROGRESS\\\"}\"}}]}}]}"));
+        transport.PostResponses.Add(Ok("{\"choices\":[{\"message\":{" +
+            "\"role\":\"assistant\",\"content\":\"Command completed.\"}}]}"));
+        OpenRouterClient client = new OpenRouterClient(transport);
+        ModelInfo model = new ModelInfo();
+        model.Id = "test/tool-model";
+        model.Name = "Tool model";
+        model.SupportsTools = true;
+        Conversation conversation = new Conversation();
+        conversation.Add("user", "Run a test command");
+        RecordingProgressSink progress = new RecordingProgressSink();
+        AgentRunner runner = new AgentRunner(client, "key", root, progress);
+        ChatResult result = runner.Run(model, conversation);
+
+        AssertEqual("Command completed.", result.Answer);
+        AssertEqual("4", progress.Events.Count.ToString());
+        AssertEqual(AgentProgressType.ModelRequestStarted.ToString(),
+            ((AgentProgress)progress.Events[0]).Type.ToString());
+        AssertEqual(AgentProgressType.ToolStarted.ToString(),
+            ((AgentProgress)progress.Events[1]).Type.ToString());
+        AgentProgress completed = (AgentProgress)progress.Events[2];
+        AssertEqual(AgentProgressType.ToolCompleted.ToString(),
+            completed.Type.ToString());
+        Hashtable commandResult = Json.AsObject(Json.Parse(completed.ToolResult));
+        if (Json.GetString(commandResult, "stdout").IndexOf("LIVE_PROGRESS") < 0)
+            throw new Exception("Live progress did not contain command output.");
+        AssertEqual(AgentProgressType.ModelRequestStarted.ToString(),
+            ((AgentProgress)progress.Events[3]).Type.ToString());
     }
 
     private static void TestContentParts()
@@ -274,9 +304,9 @@ public sealed class Tests
 
             UpdateManager manager = new UpdateManager(application);
             string result = manager.CheckAndStage();
-            if (result.IndexOf("Restart") < 0)
+            if (result.IndexOf("ready") < 0)
             {
-                throw new Exception("Update did not request a restart.");
+                throw new Exception("Update was not reported as ready.");
             }
             string staged = Path.Combine(application,
                 "UPDATE-STAGE\\H98GUI.EXE");
@@ -285,6 +315,8 @@ public sealed class Tests
             {
                 throw new Exception("Update ready marker was not written.");
             }
+            if (!manager.HasStagedUpdate)
+                throw new Exception("Staged update was not reported as ready.");
         }
         finally
         {
@@ -369,6 +401,7 @@ public sealed class Tests
     {
         public HttpResult GetResponse;
         public HttpResult PostResponse;
+        public readonly ArrayList PostResponses = new ArrayList();
         public string LastPostBody;
 
         public HttpResult Get(string url, string apiKey)
@@ -379,7 +412,23 @@ public sealed class Tests
         public HttpResult PostJson(string url, string json, string apiKey)
         {
             LastPostBody = json;
+            if (PostResponses.Count > 0)
+            {
+                HttpResult response = (HttpResult)PostResponses[0];
+                PostResponses.RemoveAt(0);
+                return response;
+            }
             return PostResponse;
+        }
+    }
+
+    private sealed class RecordingProgressSink : IAgentProgressSink
+    {
+        public readonly ArrayList Events = new ArrayList();
+
+        public void Report(AgentProgress progress)
+        {
+            Events.Add(progress);
         }
     }
 }

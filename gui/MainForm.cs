@@ -1,8 +1,10 @@
 using System;
 using System.Collections;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
+using System.IO;
 using System.Text;
 using System.Windows.Forms;
 
@@ -75,20 +77,6 @@ namespace Harness98.Gui
             Controls.Add(mainSplit);
             status.BringToFront();
 
-            costToolbar = new Panel();
-            costToolbar.Dock = DockStyle.Top;
-            costToolbar.Height = 25;
-            costToolbar.BorderStyle = BorderStyle.FixedSingle;
-            costToolbar.Visible = false;
-            Controls.Add(costToolbar);
-            costToolbar.BringToFront();
-
-            costLabel = new Label();
-            costLabel.Location = new Point(7, 5);
-            costLabel.AutoSize = true;
-            costToolbar.Controls.Add(costLabel);
-            UpdateCostToolbar();
-
             mainSplit.Panel1MinSize = 160;
             mainSplit.Panel2MinSize = 350;
             mainSplit.SplitterDistance = 210;
@@ -149,6 +137,21 @@ namespace Harness98.Gui
             modelButton.Click += new EventHandler(ChooseModel);
             mainSplit.Panel2.Controls.Add(modelButton);
 
+            costToolbar = new Panel();
+            costToolbar.Location = new Point(8, 39);
+            costToolbar.Size = new Size(483, 25);
+            costToolbar.Anchor = AnchorStyles.Top | AnchorStyles.Left |
+                AnchorStyles.Right;
+            costToolbar.BorderStyle = BorderStyle.FixedSingle;
+            costToolbar.Visible = false;
+            mainSplit.Panel2.Controls.Add(costToolbar);
+
+            costLabel = new Label();
+            costLabel.Location = new Point(7, 5);
+            costLabel.AutoSize = true;
+            costToolbar.Controls.Add(costLabel);
+            UpdateCostToolbar();
+
             transcript = new RichTextBox();
             transcript.Location = new Point(8, 40);
             transcript.Size = new Size(483, 382);
@@ -187,7 +190,10 @@ namespace Harness98.Gui
             startupWorker.RunWorkerCompleted += new RunWorkerCompletedEventHandler(
                 StartupCompleted);
             chatWorker = new BackgroundWorker();
+            chatWorker.WorkerReportsProgress = true;
             chatWorker.DoWork += new DoWorkEventHandler(ChatDoWork);
+            chatWorker.ProgressChanged += new ProgressChangedEventHandler(
+                ChatProgressChanged);
             chatWorker.RunWorkerCompleted += new RunWorkerCompletedEventHandler(
                 ChatCompleted);
             updateWorker = new BackgroundWorker();
@@ -415,8 +421,36 @@ namespace Harness98.Gui
         private void ChatDoWork(object sender, DoWorkEventArgs e)
         {
             ChatWork work = (ChatWork)e.Argument;
-            work.Result = core.SendMessage(work.Conversation, work.Model, work.Text);
+            BackgroundWorker worker = (BackgroundWorker)sender;
+            work.Result = core.SendMessage(work.Conversation, work.Model, work.Text,
+                new BackgroundAgentProgressSink(worker));
             e.Result = work;
+        }
+
+        private void ChatProgressChanged(object sender, ProgressChangedEventArgs e)
+        {
+            AgentProgress progress = (AgentProgress)e.UserState;
+            if (progress.Type == AgentProgressType.ModelRequestStarted)
+            {
+                status.Text = "Waiting for " + activeModel.Name + " (round " +
+                    progress.Iteration.ToString() + ")...";
+                return;
+            }
+            if (progress.Type == AgentProgressType.ToolStarted)
+            {
+                string command = ReadToolCommand(progress.ToolCall.Arguments);
+                status.Text = "Running command...";
+                AppendLiveProgress("Command:", command);
+                return;
+            }
+            if (progress.Type == AgentProgressType.ToolCompleted)
+            {
+                ChatMessage message = new ChatMessage("tool", progress.ToolResult);
+                message.ToolName = progress.ToolCall.Name;
+                status.Text = "Returning command output to the model...";
+                AppendLiveProgress("Command finished:",
+                    DisplayToolResult(message));
+            }
         }
 
         private void ChatCompleted(object sender, RunWorkerCompletedEventArgs e)
@@ -517,6 +551,20 @@ namespace Harness98.Gui
             return text.ToString();
         }
 
+        private static string ReadToolCommand(string argumentsText)
+        {
+            try
+            {
+                Hashtable arguments = Json.AsObject(Json.Parse(argumentsText));
+                string command = Json.GetString(arguments, "command");
+                return command == null ? argumentsText : command;
+            }
+            catch
+            {
+                return argumentsText;
+            }
+        }
+
         private static string DisplayToolResult(ChatMessage message)
         {
             try
@@ -540,12 +588,32 @@ namespace Harness98.Gui
                 if (result["output_truncated"] is bool &&
                     (bool)result["output_truncated"])
                     text.Append("\r\n[Output was truncated]");
-                return text.ToString();
+                return LimitDisplayText(text.ToString(), 4096);
             }
             catch
             {
                 return message.Content;
             }
+        }
+
+        private static string LimitDisplayText(string text, int maximum)
+        {
+            if (text == null || text.Length <= maximum) return text;
+            return text.Substring(0, maximum) +
+                "\r\n[Display preview truncated; the model received more output]";
+        }
+
+        private void AppendLiveProgress(string heading, string body)
+        {
+            transcript.SelectionStart = transcript.TextLength;
+            transcript.SelectionColor = Color.FromArgb(55, 105, 60);
+            transcript.SelectionFont = new Font(transcript.Font, FontStyle.Bold);
+            transcript.AppendText("\r\n\r\n" + heading + "\r\n");
+            transcript.SelectionFont = transcript.Font;
+            transcript.SelectionColor = transcript.ForeColor;
+            transcript.AppendText(LimitDisplayText(body, 4096));
+            transcript.SelectionStart = transcript.TextLength;
+            transcript.ScrollToCaret();
         }
 
         private void AppendPendingUser(string text)
@@ -592,8 +660,11 @@ namespace Harness98.Gui
 
         private void ToggleCostToolbar(object sender, EventArgs e)
         {
+            int transcriptBottom = transcript.Bottom;
             costToolbar.Visible = !costToolbar.Visible;
             costToolbarMenu.Checked = costToolbar.Visible;
+            transcript.Top = costToolbar.Visible ? 70 : 40;
+            transcript.Height = Math.Max(40, transcriptBottom - transcript.Top);
         }
 
         private void UpdateCostToolbar()
@@ -630,10 +701,56 @@ namespace Harness98.Gui
         {
             SetInteractive(true);
             status.Text = "Ready";
-            string message = e.Error == null ? (string)e.Result : e.Error.Message;
-            MessageBox.Show(this, message, e.Error == null ? "Harness98 update" :
-                "Update check failed", MessageBoxButtons.OK, e.Error == null ?
-                MessageBoxIcon.Information : MessageBoxIcon.Error);
+            if (e.Error != null)
+            {
+                MessageBox.Show(this, e.Error.Message, "Update check failed",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            string message = (string)e.Result;
+            if (!core.Updates.HasStagedUpdate)
+            {
+                MessageBox.Show(this, message, "Harness98 update",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            UpdateReadyDialog dialog = new UpdateReadyDialog(message);
+            DialogResult choice = dialog.ShowDialog(this);
+            dialog.Dispose();
+            if (choice == DialogResult.Yes) RestartForUpdate();
+        }
+
+        private void RestartForUpdate()
+        {
+            try
+            {
+                string applicationDirectory =
+                    AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\', '/');
+                string installedHelper = Path.Combine(applicationDirectory,
+                    "H98RESTART.EXE");
+                if (!File.Exists(installedHelper))
+                    throw new FileNotFoundException(
+                        "The Harness98 restart helper is missing.", installedHelper);
+                string temporaryHelper = Path.Combine(Path.GetTempPath(),
+                    "H98RST" + DateTime.UtcNow.Ticks.ToString("x") + ".EXE");
+                File.Copy(installedHelper, temporaryHelper, true);
+
+                ProcessStartInfo start = new ProcessStartInfo();
+                start.FileName = temporaryHelper;
+                start.Arguments = "\"" + applicationDirectory + "\" " +
+                    Process.GetCurrentProcess().Id.ToString();
+                start.WorkingDirectory = applicationDirectory;
+                start.UseShellExecute = true;
+                Process.Start(start);
+                Close();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, ex.Message, "Could not restart Harness98",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void SetInteractive(bool enabled)
@@ -689,6 +806,21 @@ namespace Harness98.Gui
             public ModelInfo Model;
             public string Text;
             public ChatResult Result;
+        }
+
+        private sealed class BackgroundAgentProgressSink : IAgentProgressSink
+        {
+            private readonly BackgroundWorker worker;
+
+            public BackgroundAgentProgressSink(BackgroundWorker backgroundWorker)
+            {
+                worker = backgroundWorker;
+            }
+
+            public void Report(AgentProgress progress)
+            {
+                worker.ReportProgress(0, progress);
+            }
         }
 
         private sealed class ConversationListItem

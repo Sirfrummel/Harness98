@@ -1,0 +1,9 @@
+/nologo
+/target:winexe
+/platform:x86
+/optimize+
+/main:Harness98.Restarter.RestarterProgram
+/reference:System.dll
+/reference:System.Windows.Forms.dll
+/out:H98RESTART.EXE
+RESTARTER\RESTARTER.CS

@@ -54,6 +54,26 @@ namespace Harness98
         public string Arguments;
     }
 
+    public enum AgentProgressType
+    {
+        ModelRequestStarted,
+        ToolStarted,
+        ToolCompleted
+    }
+
+    public sealed class AgentProgress
+    {
+        public AgentProgressType Type;
+        public int Iteration;
+        public ToolCall ToolCall;
+        public string ToolResult;
+    }
+
+    public interface IAgentProgressSink
+    {
+        void Report(AgentProgress progress);
+    }
+
     public sealed class Conversation
     {
         private readonly ArrayList messages = new ArrayList();

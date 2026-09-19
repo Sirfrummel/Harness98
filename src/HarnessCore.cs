@@ -70,6 +70,12 @@ namespace Harness98
         public ChatResult SendMessage(Conversation conversation, ModelInfo model,
             string text)
         {
+            return SendMessage(conversation, model, text, null);
+        }
+
+        public ChatResult SendMessage(Conversation conversation, ModelInfo model,
+            string text, IAgentProgressSink progress)
+        {
             RequireConnected();
             if (conversation == null || model == null)
                 throw new ArgumentNullException("conversation");
@@ -79,7 +85,8 @@ namespace Harness98
             ChatResult result;
             try
             {
-                AgentRunner runner = new AgentRunner(client, ApiKey, baseDirectory);
+                AgentRunner runner = new AgentRunner(client, ApiKey, baseDirectory,
+                    progress);
                 result = runner.Run(model, conversation);
             }
             catch

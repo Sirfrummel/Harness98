@@ -47,6 +47,7 @@ cd "$project_root"
 cp vendor/libcurl-win98/LibCurlNet.dll .
 wine "$csc" @UPDATER.RSP
 wine "$csc" @LAUNCHER31.RSP
+wine "$csc" @RESTART.RSP
 wine "$csc" @GUI31.RSP
 wine "$csc" @CLI31.RSP
 
@@ -60,14 +61,16 @@ wine HARNESS98-TESTS.EXE
 echo "Assembling fresh package..."
 recreate_owned_directory "$package"
 mkdir -p "$package/SRC" "$package/GUI" "$package/LAUNCHER" \
-    "$package/UPDATER"
-cp HARNESS98.EXE H98GUI.EXE H98CLI.EXE HARNESS98-UPDATER.EXE \
-    BUILD31.BAT LAUNCHER31.RSP GUI31.RSP CLI31.RSP UPDATER.RSP \
+    "$package/UPDATER" "$package/RESTARTER"
+cp HARNESS98.EXE H98GUI.EXE H98CLI.EXE H98RESTART.EXE \
+    HARNESS98-UPDATER.EXE BUILD31.BAT LAUNCHER31.RSP RESTART.RSP \
+    GUI31.RSP CLI31.RSP UPDATER.RSP \
     RUN3.BAT RUNCLI.BAT HARNESS98.CFG V31README.TXT "$package/"
 cp src/*.cs "$package/SRC/"
 cp gui/*.cs "$package/GUI/"
 cp launcher/*.cs "$package/LAUNCHER/"
 cp updater/*.cs "$package/UPDATER/"
+cp restarter/*.cs "$package/RESTARTER/"
 cp vendor/libcurl-win98/LibCurlNet.dll \
     vendor/libcurl-win98/LibCurlShim.dll \
     vendor/libcurl-win98/libcurl.dll \
@@ -102,6 +105,7 @@ if [[ $version == "3.1.2" ]]; then
 fi
 add_update_file H98GUI.EXE "$project_root/H98GUI.EXE"
 add_update_file H98CLI.EXE "$project_root/H98CLI.EXE"
+add_update_file H98RESTART.EXE "$project_root/H98RESTART.EXE"
 add_update_file RUN3.BAT "$project_root/RUN3.BAT"
 add_update_file RUNCLI.BAT "$project_root/RUNCLI.BAT"
 add_update_file V31README.TXT "$project_root/V31README.TXT"

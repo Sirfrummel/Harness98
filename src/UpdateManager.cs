@@ -57,8 +57,7 @@ namespace Harness98
 
             File.Copy(manifestPath, Path.Combine(stage, "MANIFEST.INI"), true);
             WriteAscii(Path.Combine(stage, "READY.TAG"), manifest.Version);
-            return "New update " + manifest.Version +
-                " found and verified. Restart Harness98 to apply it.";
+            return "Update " + manifest.Version + " found and ready.";
         }
 
         public string LoadServer()
@@ -66,6 +65,15 @@ namespace Harness98
             AppConfiguration configuration = new AppConfiguration(baseDirectory);
             configuration.Load();
             return configuration.UpdateServer;
+        }
+
+        public bool HasStagedUpdate
+        {
+            get
+            {
+                return File.Exists(Path.Combine(baseDirectory,
+                    "UPDATE-STAGE\\READY.TAG"));
+            }
         }
 
         private static void RecreateDirectory(string path)

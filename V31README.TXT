@@ -12,6 +12,7 @@ GUI FEATURES
 - Scrollable and selectable conversation transcript
 - Enter sends; Shift+Enter inserts a new line
 - Optional session cost and token toolbar under the View menu
+- Live command and output progress while the agent is working
 - Toggleable conversation sidebar and New Conversation command
 - Reusable model picker with text, vision-input, and image-output filters
 - Tool-capable model filter and COMMAND.COM command execution
@@ -19,7 +20,7 @@ GUI FEATURES
 - Settings for API key, update server, and automatic conversation titles
 - Background requests with a replaceable status message
 - Compact three-line prompt editor and visually distinct chat turns
-- Update checks under the Tools menu
+- Update checks with Restart now and Later choices
 
 The capability filters describe models advertised by OpenRouter.  Harness98
 currently sends text messages only; image attachment and response

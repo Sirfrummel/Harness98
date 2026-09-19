@@ -10,14 +10,16 @@ namespace Harness98
         private readonly string apiKey;
         private readonly string applicationDirectory;
         private readonly ToolRegistry tools;
+        private readonly IAgentProgressSink progress;
 
         public AgentRunner(OpenRouterClient openRouter, string key,
-            string workingDirectory)
+            string workingDirectory, IAgentProgressSink progressSink)
         {
             client = openRouter;
             apiKey = key;
             applicationDirectory = workingDirectory;
             tools = new ToolRegistry(workingDirectory);
+            progress = progressSink;
         }
 
         public ChatResult Run(ModelInfo model, Conversation conversation)
@@ -26,6 +28,8 @@ namespace Harness98
             bool toolsEnabled = model.SupportsTools;
             for (int iteration = 0; iteration < MaximumIterations; iteration++)
             {
+                Report(AgentProgressType.ModelRequestStarted, iteration + 1,
+                    null, null);
                 ArrayList messages = BuildMessages(conversation, toolsEnabled);
                 ChatCompletion completion = client.SendChatWithUsage(apiKey,
                     model.Id, messages, toolsEnabled ? tools.DefinitionsJson : null);
@@ -46,8 +50,12 @@ namespace Harness98
                 for (int i = 0; i < completion.ToolCalls.Count; i++)
                 {
                     ToolCall call = (ToolCall)completion.ToolCalls[i];
-                    ChatMessage result = new ChatMessage("tool",
-                        tools.Execute(call));
+                    Report(AgentProgressType.ToolStarted, iteration + 1,
+                        call, null);
+                    string toolOutput = tools.Execute(call);
+                    Report(AgentProgressType.ToolCompleted, iteration + 1,
+                        call, toolOutput);
+                    ChatMessage result = new ChatMessage("tool", toolOutput);
                     result.ToolCallId = call.Id;
                     result.ToolName = call.Name;
                     conversation.Add(result);
@@ -56,6 +64,18 @@ namespace Harness98
 
             throw new ApplicationException("The model reached the maximum of " +
                 MaximumIterations.ToString() + " tool-call rounds.");
+        }
+
+        private void Report(AgentProgressType type, int iteration,
+            ToolCall call, string result)
+        {
+            if (progress == null) return;
+            AgentProgress update = new AgentProgress();
+            update.Type = type;
+            update.Iteration = iteration;
+            update.ToolCall = call;
+            update.ToolResult = result;
+            progress.Report(update);
         }
 
         private ArrayList BuildMessages(Conversation conversation,
