@@ -32,13 +32,12 @@ GUI NOTES
 - Enter sends a message; Shift+Enter inserts a new line.
 - While a response is active, Send changes to Queue.  Queued messages run in
   order after the current response finishes.
-- A command running for ten seconds shows Stop command beneath the Queue
-  button.  Stopping terminates COMMAND.COM and child processes Harness98 can
-  discover, then asks the model for a final response without more tools.
+- Stop is available beneath the Queue button throughout an agent run.  It
+  cancels a running command, skips pending tools and queued messages, and asks
+  the model for a final response without more tools.
 - The hard command timeout is 30 seconds.
 - View > Cost Toolbar shows session cost and token totals.
-- Tools > Settings controls the key, update path, titles, tool limit, and cost
-  warning.
+- Tools > Settings controls the key, update path, titles, and cost warning.
 
 AGENT TOOLS
 -----------

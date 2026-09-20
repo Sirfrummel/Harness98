@@ -12,14 +12,8 @@ namespace Harness98
         public string UpdateServer = UpdateManager.DefaultServer;
         public bool AutoTitleConversations;
         public string TitleModelId = "";
-        public int ToolCallLimit;
         public bool CostWarningEnabled;
         public double CostWarningAmount = 1.0;
-
-        public int EffectiveToolCallLimit
-        {
-            get { return ToolCallLimit > 0 ? ToolCallLimit : 10; }
-        }
 
         public AppConfiguration(string baseDirectory)
         {
@@ -47,12 +41,6 @@ namespace Harness98
                 else if (key == "AUTO_TITLE")
                     AutoTitleConversations = String.Compare(value, "true", true) == 0;
                 else if (key == "TITLE_MODEL") TitleModelId = value;
-                else if (key == "TOOL_CALL_LIMIT")
-                {
-                    int limit;
-                    if (Int32.TryParse(value, out limit) && limit > 0)
-                        ToolCallLimit = limit;
-                }
                 else if (key == "COST_WARNING_ENABLED")
                     CostWarningEnabled = String.Compare(value, "true", true) == 0;
                 else if (key == "COST_WARNING_AMOUNT")
@@ -74,8 +62,6 @@ namespace Harness98
                 writer.WriteLine("AUTO_TITLE=" +
                     (AutoTitleConversations ? "true" : "false"));
                 writer.WriteLine("TITLE_MODEL=" + TitleModelId);
-                writer.WriteLine("TOOL_CALL_LIMIT=" +
-                    (ToolCallLimit > 0 ? ToolCallLimit.ToString() : ""));
                 writer.WriteLine("COST_WARNING_ENABLED=" +
                     (CostWarningEnabled ? "true" : "false"));
                 writer.WriteLine("COST_WARNING_AMOUNT=" +

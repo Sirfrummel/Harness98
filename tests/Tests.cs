@@ -18,10 +18,10 @@ public sealed class Tests
         Run("Bounded text file tools", TestFileTools);
         Run("Rich text code fences", TestRichTextCodeFences);
         Run("Live agent progress", TestAgentProgress);
-        Run("Tool limit final response", TestToolLimitFinalResponse);
-        Run("Configurable tool limit", TestConfigurableToolLimit);
+        Run("Unbounded tool rounds", TestUnboundedToolRounds);
+        Run("Interrupted parallel tools", TestInterruptedParallelTools);
         Run("Cost warning stops tools", TestCostWarningStopsTools);
-        Run("Limit settings persistence", TestLimitSettingsPersistence);
+        Run("Cost settings persistence", TestCostSettingsPersistence);
         Run("Usage cost fallback", TestUsageCostFallback);
         Run("Content-part response", TestContentParts);
         Run("API error message", TestApiError);
@@ -213,10 +213,10 @@ public sealed class Tests
             ((AgentProgress)progress.Events[5]).Type.ToString());
     }
 
-    private static void TestToolLimitFinalResponse()
+    private static void TestUnboundedToolRounds()
     {
         FakeTransport transport = new FakeTransport();
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < 12; i++)
         {
             transport.PostResponses.Add(Ok("{\"choices\":[{\"message\":{" +
                 "\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{" +
@@ -238,9 +238,10 @@ public sealed class Tests
         ChatResult result = runner.Run(model, conversation);
 
         AssertEqual("Here is my final summary.", result.Answer);
-        AssertEqual("21", conversation.Count.ToString());
+        AssertEqual("25", conversation.Count.ToString());
         Hashtable finalRequest = Json.AsObject(Json.Parse(transport.LastPostBody));
-        AssertEqual("none", Json.GetString(finalRequest, "tool_choice"));
+        if (Json.GetString(finalRequest, "tool_choice") != null)
+            throw new Exception("A natural final response disabled tools unexpectedly.");
     }
 
     private static void TestUsageCostFallback()
@@ -387,7 +388,7 @@ public sealed class Tests
             throw new Exception("An incomplete fence was incorrectly hidden.");
     }
 
-    private static void TestLimitSettingsPersistence()
+    private static void TestCostSettingsPersistence()
     {
         string root = Path.Combine(Path.GetTempPath(), "h98-config-" +
             Guid.NewGuid().ToString("N"));
@@ -395,14 +396,12 @@ public sealed class Tests
         try
         {
             AppConfiguration saved = new AppConfiguration(root);
-            saved.ToolCallLimit = 7;
             saved.CostWarningEnabled = true;
             saved.CostWarningAmount = 0.125;
             saved.Save();
 
             AppConfiguration loaded = new AppConfiguration(root);
             loaded.Load();
-            AssertEqual("7", loaded.EffectiveToolCallLimit.ToString());
             AssertEqual("True", loaded.CostWarningEnabled.ToString());
             AssertEqual("0.125", loaded.CostWarningAmount.ToString(
                 System.Globalization.CultureInfo.InvariantCulture));
@@ -413,31 +412,36 @@ public sealed class Tests
         }
     }
 
-    private static void TestConfigurableToolLimit()
+    private static void TestInterruptedParallelTools()
     {
         FakeTransport transport = new FakeTransport();
-        for (int i = 0; i < 2; i++)
-        {
-            transport.PostResponses.Add(Ok("{\"choices\":[{\"message\":{" +
-                "\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{" +
-                "\"id\":\"custom-" + i.ToString() + "\",\"type\":\"function\"," +
-                "\"function\":{\"name\":\"unknown_test_tool\"," +
-                "\"arguments\":\"{}\"}}]}}]}"));
-        }
         transport.PostResponses.Add(Ok("{\"choices\":[{\"message\":{" +
-            "\"role\":\"assistant\",\"content\":\"Stopped at two.\"}}]}"));
+            "\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{" +
+            "\"id\":\"parallel-1\",\"type\":\"function\",\"function\":{" +
+            "\"name\":\"unknown_test_tool\",\"arguments\":\"{}\"}},{" +
+            "\"id\":\"parallel-2\",\"type\":\"function\",\"function\":{" +
+            "\"name\":\"unknown_test_tool\",\"arguments\":\"{}\"}}]}}]}"));
+        transport.PostResponses.Add(Ok("{\"choices\":[{\"message\":{" +
+            "\"role\":\"assistant\",\"content\":\"The run was stopped.\"}}]}"));
         ModelInfo model = new ModelInfo();
-        model.Id = "test/custom-limit";
-        model.Name = "Custom limit";
+        model.Id = "test/interrupted-parallel";
+        model.Name = "Interrupted parallel";
         model.SupportsTools = true;
         Conversation conversation = new Conversation();
         conversation.Add("user", "Use tools");
+        StopAfterFirstToolSink progress = new StopAfterFirstToolSink();
         AgentRunner runner = new AgentRunner(new OpenRouterClient(transport),
-            "key", Path.GetTempPath(), null, 2);
+            "key", Path.GetTempPath(), progress);
         ChatResult result = runner.Run(model, conversation);
 
-        AssertEqual("Stopped at two.", result.Answer);
-        AssertEqual("5", conversation.Count.ToString());
+        AssertEqual("The run was stopped.", result.Answer);
+        AssertEqual("4", conversation.Count.ToString());
+        ChatMessage interruptedMessage = (ChatMessage)conversation.Messages[3];
+        Hashtable interrupted = Json.AsObject(Json.Parse(
+            interruptedMessage.Content));
+        if (!(interrupted["interrupted"] is bool) ||
+            !(bool)interrupted["interrupted"])
+            throw new Exception("The unexecuted call was not marked interrupted.");
         Hashtable finalRequest = Json.AsObject(Json.Parse(transport.LastPostBody));
         AssertEqual("none", Json.GetString(finalRequest, "tool_choice"));
     }
@@ -452,6 +456,9 @@ public sealed class Tests
             "\"{\\\"command\\\":\\\"echo SHOULD_NOT_RUN\\\"}\"}}]}}]," +
             "\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1," +
             "\"total_tokens\":2,\"cost\":0.5}}"));
+        transport.PostResponses.Add(Ok("{\"choices\":[{\"message\":{" +
+            "\"role\":\"assistant\",\"content\":" +
+            "\"Stopped because of the cost warning.\"}}]}"));
         ModelInfo model = new ModelInfo();
         model.Id = "test/cost-stop";
         model.Name = "Cost stop";
@@ -460,12 +467,16 @@ public sealed class Tests
         conversation.Add("user", "Try a tool");
         StopAfterUsageSink progress = new StopAfterUsageSink();
         AgentRunner runner = new AgentRunner(new OpenRouterClient(transport),
-            "key", Path.GetTempPath(), progress, 10);
+            "key", Path.GetTempPath(), progress);
         ChatResult result = runner.Run(model, conversation);
 
-        if (result.Answer.IndexOf("Stopped before running") < 0)
-            throw new Exception("The stopped run did not return a clear response.");
-        AssertEqual("1", conversation.Count.ToString());
+        AssertEqual("Stopped because of the cost warning.", result.Answer);
+        AssertEqual("3", conversation.Count.ToString());
+        Hashtable interrupted = Json.AsObject(Json.Parse(
+            ((ChatMessage)conversation.Messages[2]).Content));
+        if (!(interrupted["interrupted"] is bool) ||
+            !(bool)interrupted["interrupted"])
+            throw new Exception("The cost-stopped tool was not interrupted.");
     }
 
     private static void TestContentParts()
@@ -714,6 +725,23 @@ public sealed class Tests
         public void Report(AgentProgress progress)
         {
             if (progress.Type == AgentProgressType.UsageReceived)
+                continueRun = false;
+        }
+
+        public bool ContinueRun
+        {
+            get { return continueRun; }
+        }
+    }
+
+    private sealed class StopAfterFirstToolSink : IAgentProgressSink,
+        IAgentRunControl
+    {
+        private bool continueRun = true;
+
+        public void Report(AgentProgress progress)
+        {
+            if (progress.Type == AgentProgressType.ToolCompleted)
                 continueRun = false;
         }
 

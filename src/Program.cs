@@ -313,8 +313,26 @@ namespace Harness98
                 {
                     Console.WriteLine();
                     Console.WriteLine("Waiting for " + session.Model.Name + "...");
-                    ChatResult result = core.SendMessage(session.Conversation,
-                        session.Model, input, new ConsoleAgentProgressSink());
+                    Console.WriteLine("Press Ctrl+C to stop this run.");
+                    ConsoleAgentProgressSink progress =
+                        new ConsoleAgentProgressSink();
+                    ConsoleCancelEventHandler cancelHandler = delegate(
+                        object cancelSender, ConsoleCancelEventArgs cancelArgs)
+                    {
+                        cancelArgs.Cancel = true;
+                        progress.RequestStop();
+                    };
+                    Console.CancelKeyPress += cancelHandler;
+                    ChatResult result;
+                    try
+                    {
+                        result = core.SendMessage(session.Conversation,
+                            session.Model, input, progress);
+                    }
+                    finally
+                    {
+                        Console.CancelKeyPress -= cancelHandler;
+                    }
                     Console.WriteLine();
                     Console.WriteLine("Assistant> " + result.Answer);
                     if (result.GeneratedTitle != null)
@@ -368,8 +386,11 @@ namespace Harness98
             }
         }
 
-        private sealed class ConsoleAgentProgressSink : IAgentProgressSink
+        private sealed class ConsoleAgentProgressSink : IAgentProgressSink,
+            IAgentRunControl, ICommandRunControl
         {
+            private volatile bool stopRequested;
+
             public void Report(AgentProgress progress)
             {
                 if (progress.Type == AgentProgressType.ToolStarted)
@@ -383,6 +404,30 @@ namespace Harness98
                     Console.WriteLine(FormatToolResult(progress.ToolResult));
                     Console.WriteLine("Returning command output to the model...");
                 }
+                else if (progress.Type == AgentProgressType.ToolInterrupted)
+                {
+                    Console.WriteLine();
+                    Console.WriteLine("Tool interrupted before execution: " +
+                        DescribeToolCall(progress.ToolCall));
+                }
+            }
+
+            public void RequestStop()
+            {
+                if (stopRequested) return;
+                stopRequested = true;
+                Console.WriteLine();
+                Console.WriteLine("Stopping after the current operation...");
+            }
+
+            public bool ContinueRun
+            {
+                get { return !stopRequested; }
+            }
+
+            public bool CancelCommand
+            {
+                get { return stopRequested; }
             }
 
             private static string DescribeToolCall(ToolCall call)

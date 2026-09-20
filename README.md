@@ -45,7 +45,7 @@ Working features include:
 - Session token and cost tracking, with a configurable cost warning
 - Live tool-call progress in the GUI
 - Queued user messages while an agent run is active
-- A delayed Stop command control for long-running commands
+- A Stop control that gracefully interrupts an entire agent run
 - `run_command`, `read_file`, `write_file`, and `edit_file` agent tools
 - Bounded command output and file reads
 - Basic fenced-code formatting in the GUI transcript
@@ -120,10 +120,12 @@ checks, and an optional session-cost toolbar. Press **Enter** to send and
 **Shift+Enter** to insert a new line. While a response is active, additional
 messages can be queued and are sent in order after the current turn finishes.
 
-When a command has run for ten seconds, a **Stop command** button appears below
-the Send/Queue button. Stopping a command terminates its discovered descendant
-processes as well as its `COMMAND.COM` wrapper, then asks the model for a final
-response with further tools disabled.
+While an agent response is active, **Stop** appears below the Send/Queue button.
+Stopping cancels a running command, prevents queued tool calls and queued user
+messages from starting, returns explicit interruption results to the model, and
+then asks it for a final response with further tools disabled. If Harness98 is
+waiting for OpenRouter when Stop is pressed, it finishes that in-flight network
+request before closing the run gracefully.
 
 ### Command-line interface
 
@@ -142,7 +144,7 @@ The CLI supports these commands:
 | `/help` | Show the command list |
 | `/exit` | Exit Harness98 |
 
-## Agent tools and limits
+## Agent tools, bounds, and interruption
 
 Harness98 offers tools to models that OpenRouter reports as supporting tool
 calls:
@@ -156,7 +158,9 @@ calls:
 
 Command output returned to the model is capped at 8 KiB of standard output and
 2 KiB of standard error. A file read returns at most 1,000 lines and 32,768
-characters. The default tool-round limit is 10 and can be changed under
+characters. Agent runs do not have a fixed tool-call limit. Use **Stop** in the
+GUI, or Ctrl+C during a CLI response, to interrupt a run gracefully. The
+configurable session-cost warning remains available under
 **Tools > Settings > Limits**.
 
 Relative paths and command working directories start from the Harness98

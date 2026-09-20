@@ -59,7 +59,8 @@ namespace Harness98
         ModelRequestStarted,
         UsageReceived,
         ToolStarted,
-        ToolCompleted
+        ToolCompleted,
+        ToolInterrupted
     }
 
     public sealed class AgentProgress

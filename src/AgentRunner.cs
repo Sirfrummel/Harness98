@@ -6,24 +6,14 @@ namespace Harness98
 {
     public sealed class AgentRunner
     {
-        private const int DefaultMaximumIterations = 10;
         private readonly OpenRouterClient client;
         private readonly string apiKey;
         private readonly string applicationDirectory;
         private readonly ToolRegistry tools;
         private readonly IAgentProgressSink progress;
-        private readonly int maximumIterations;
 
         public AgentRunner(OpenRouterClient openRouter, string key,
             string workingDirectory, IAgentProgressSink progressSink)
-            : this(openRouter, key, workingDirectory, progressSink,
-                DefaultMaximumIterations)
-        {
-        }
-
-        public AgentRunner(OpenRouterClient openRouter, string key,
-            string workingDirectory, IAgentProgressSink progressSink,
-            int toolCallLimit)
         {
             client = openRouter;
             apiKey = key;
@@ -31,35 +21,28 @@ namespace Harness98
             tools = new ToolRegistry(workingDirectory,
                 progressSink as ICommandRunControl);
             progress = progressSink;
-            maximumIterations = toolCallLimit > 0 ? toolCallLimit :
-                DefaultMaximumIterations;
         }
 
         public ChatResult Run(ModelInfo model, Conversation conversation)
         {
             ChatResult total = new ChatResult();
             bool toolsEnabled = model.SupportsTools;
-            for (int iteration = 0; iteration < maximumIterations; iteration++)
+            int iteration = 0;
+            while (true)
             {
-                Report(AgentProgressType.ModelRequestStarted, iteration + 1,
+                iteration++;
+                Report(AgentProgressType.ModelRequestStarted, iteration,
                     null, null);
                 ArrayList messages = BuildMessages(conversation, toolsEnabled);
                 ChatCompletion completion = client.SendChatWithUsage(apiKey,
                     model.Id, messages, toolsEnabled ? tools.DefinitionsJson : null);
                 ApplyCostFallback(completion, model);
                 AddUsage(total, completion);
-                ReportUsage(completion, iteration + 1);
+                ReportUsage(completion, iteration);
 
                 if (completion.ToolCalls.Count == 0)
                 {
                     total.Answer = completion.Answer;
-                    return total;
-                }
-
-                if (!ShouldContinue())
-                {
-                    total.Answer = "Stopped before running the next command " +
-                        "because the session cost warning was declined.";
                     return total;
                 }
 
@@ -69,46 +52,56 @@ namespace Harness98
                     assistant.AddToolCall((ToolCall)completion.ToolCalls[i]);
                 conversation.Add(assistant);
 
-                bool commandCancelled = false;
+                bool runInterrupted = false;
                 for (int i = 0; i < completion.ToolCalls.Count; i++)
                 {
                     ToolCall call = (ToolCall)completion.ToolCalls[i];
-                    Report(AgentProgressType.ToolStarted, iteration + 1,
+                    if (!ShouldContinue())
+                    {
+                        string interruptedOutput = InterruptedToolResult();
+                        Report(AgentProgressType.ToolInterrupted, iteration,
+                            call, interruptedOutput);
+                        AddToolResult(conversation, call, interruptedOutput);
+                        runInterrupted = true;
+                        continue;
+                    }
+                    Report(AgentProgressType.ToolStarted, iteration,
                         call, null);
                     string toolOutput = tools.Execute(call);
-                    Report(AgentProgressType.ToolCompleted, iteration + 1,
+                    Report(AgentProgressType.ToolCompleted, iteration,
                         call, toolOutput);
-                    ChatMessage result = new ChatMessage("tool", toolOutput);
-                    result.ToolCallId = call.Id;
-                    result.ToolName = call.Name;
-                    conversation.Add(result);
-                    if (ToolWasCancelled(toolOutput)) commandCancelled = true;
+                    AddToolResult(conversation, call, toolOutput);
+                    if (ToolWasCancelled(toolOutput) || !ShouldContinue())
+                        runInterrupted = true;
                 }
 
-                if (!ShouldContinue())
-                {
-                    total.Answer = "The current operation was stopped by the user.";
-                    return total;
-                }
-                if (commandCancelled)
+                if (runInterrupted)
                 {
                     return RequestFinalResponse(model, conversation, total,
-                        toolsEnabled, iteration + 2,
-                        "The user stopped the running command. Do not request " +
-                        "any more tools in this response. Explain what was " +
-                        "stopped and respond using the information already available.",
-                        "The command was stopped by the user.");
+                        toolsEnabled, iteration + 1,
+                        "The user interrupted this agent run. Some requested " +
+                        "tools may not have executed. Do not request any more " +
+                        "tools in this response. Briefly explain what completed, " +
+                        "what was interrupted, and what work remains.",
+                        "The agent run was interrupted by the user.");
                 }
             }
+        }
 
-            return RequestFinalResponse(model, conversation, total, toolsEnabled,
-                maximumIterations + 1,
-                "The maximum of " + maximumIterations.ToString() +
-                " tool-call rounds has been reached. Do not request any more " +
-                "tools. Respond to the user now using the information already " +
-                "collected, and briefly mention any work that remains.",
-                "The tool-call limit was reached before the model produced a " +
-                "final response.");
+        private static void AddToolResult(Conversation conversation,
+            ToolCall call, string output)
+        {
+            ChatMessage result = new ChatMessage("tool", output);
+            result.ToolCallId = call.Id;
+            result.ToolName = call.Name;
+            conversation.Add(result);
+        }
+
+        private static string InterruptedToolResult()
+        {
+            return "{\"error\":" + Json.Quote(
+                "Tool call interrupted by the user before execution.") +
+                ",\"interrupted\":true}";
         }
 
         private ChatResult RequestFinalResponse(ModelInfo model,

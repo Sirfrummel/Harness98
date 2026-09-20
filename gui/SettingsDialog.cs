@@ -14,7 +14,6 @@ namespace Harness98.Gui
         private readonly TextBox serverBox;
         private readonly CheckBox autoTitle;
         private readonly TextBox titleModelBox;
-        private readonly TextBox toolLimitBox;
         private readonly CheckBox costWarning;
         private readonly Label costAmountLabel;
         private readonly TextBox costAmountBox;
@@ -93,21 +92,9 @@ namespace Harness98.Gui
             TabPage limits = new TabPage("Limits");
             tabs.TabPages.Add(limits);
 
-            Label toolLabel = MakeLabel("Tool calls per run:", 16, 20);
-            limits.Controls.Add(toolLabel);
-            toolLimitBox = new TextBox();
-            toolLimitBox.Location = new Point(145, 17);
-            toolLimitBox.Size = new Size(70, 20);
-            toolLimitBox.Text = core.Configuration.ToolCallLimit > 0 ?
-                core.Configuration.ToolCallLimit.ToString() : "";
-            limits.Controls.Add(toolLimitBox);
-            Label toolNote = MakeLabel("Leave blank to use the default of 10.",
-                16, 48);
-            limits.Controls.Add(toolNote);
-
             GroupBox costs = new GroupBox();
             costs.Text = "Session costs";
-            costs.Location = new Point(16, 82);
+            costs.Location = new Point(16, 17);
             costs.Size = new Size(472, 125);
             limits.Controls.Add(costs);
 
@@ -195,13 +182,6 @@ namespace Harness98.Gui
         {
             try
             {
-                int toolLimit = 0;
-                if (toolLimitBox.Text.Trim().Length > 0 &&
-                    (!Int32.TryParse(toolLimitBox.Text.Trim(), out toolLimit) ||
-                    toolLimit < 1 || toolLimit > 100))
-                    throw new ApplicationException(
-                        "Tool calls per run must be blank or a number from 1 to 100.");
-
                 double costAmount = core.Configuration.CostWarningAmount;
                 if (costWarning.Checked || costAmountBox.Text.Trim().Length > 0)
                 {
@@ -220,7 +200,6 @@ namespace Harness98.Gui
                 core.Configuration.AutoTitleConversations = autoTitle.Checked;
                 core.Configuration.TitleModelId = titleModel == null ? "" :
                     titleModel.Id;
-                core.Configuration.ToolCallLimit = toolLimit;
                 core.Configuration.CostWarningEnabled = costWarning.Checked;
                 core.Configuration.CostWarningAmount = costAmount;
                 core.Configuration.Save();
