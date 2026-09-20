@@ -27,6 +27,7 @@ namespace Harness98.Gui
         private readonly RichTextBox transcript;
         private readonly TextBox prompt;
         private readonly Button sendButton;
+        private readonly Button stopCommandButton;
         private readonly Button newButton;
         private readonly Button modelButton;
         private readonly Button hideChatsButton;
@@ -38,8 +39,14 @@ namespace Harness98.Gui
         private readonly BackgroundWorker startupWorker;
         private readonly BackgroundWorker chatWorker;
         private readonly BackgroundWorker updateWorker;
+        private readonly Timer commandTimer;
+        private readonly Queue queuedMessages = new Queue();
         private bool changingConversation;
         private ArrayList liveTranscriptMessages;
+        private ChatWork activeChatWork;
+        private DateTime commandStartedUtc;
+        private string chatStatusText = "Ready";
+        private bool closeWhenIdle;
         private Conversation activeConversation;
         private ModelInfo activeModel;
         private long sessionPromptTokens;
@@ -191,9 +198,18 @@ namespace Harness98.Gui
             sendButton.Click += new EventHandler(SendClicked);
             mainSplit.Panel2.Controls.Add(sendButton);
 
-            Label sendHint = MakeLabel("Shift+Enter: new line", 385, 466);
-            sendHint.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-            mainSplit.Panel2.Controls.Add(sendHint);
+            stopCommandButton = new Button();
+            stopCommandButton.Text = "Stop command";
+            stopCommandButton.Location = new Point(403, 464);
+            stopCommandButton.Size = new Size(88, 24);
+            stopCommandButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
+            stopCommandButton.Visible = false;
+            stopCommandButton.Click += new EventHandler(StopCommandClicked);
+            mainSplit.Panel2.Controls.Add(stopCommandButton);
+
+            commandTimer = new Timer();
+            commandTimer.Interval = 500;
+            commandTimer.Tick += new EventHandler(CommandTimerTick);
 
             startupWorker = new BackgroundWorker();
             startupWorker.DoWork += new DoWorkEventHandler(StartupDoWork);
@@ -414,12 +430,23 @@ namespace Harness98.Gui
         private void BeginSend()
         {
             string text = prompt.Text.Trim();
-            if (text.Length == 0 || chatWorker.IsBusy || activeConversation == null)
+            if (text.Length == 0 || activeConversation == null) return;
+            if (chatWorker.IsBusy)
+            {
+                queuedMessages.Enqueue(text);
+                prompt.Clear();
+                RefreshChatStatus();
                 return;
+            }
+            if (StartSend(text)) prompt.Clear();
+        }
+
+        private bool StartSend(string text)
+        {
             if (core.Configuration.CostWarningEnabled &&
                 !costWarningAcknowledged &&
                 sessionCost >= core.Configuration.CostWarningAmount &&
-                !ShowCostWarning(sessionCost)) return;
+                !ShowCostWarning(sessionCost)) return false;
             ChatWork work = new ChatWork();
             work.Conversation = activeConversation;
             work.Model = activeModel;
@@ -428,11 +455,12 @@ namespace Harness98.Gui
             work.CostWarningEnabled = core.Configuration.CostWarningEnabled &&
                 !costWarningAcknowledged;
             work.CostWarningAmount = core.Configuration.CostWarningAmount;
+            activeChatWork = work;
             BeginLiveTranscript(text);
-            prompt.Clear();
-            SetInteractive(false);
-            status.Text = "Waiting for " + activeModel.Name + "...";
+            SetChatBusy();
+            SetChatStatus("Waiting for " + activeModel.Name + "...");
             chatWorker.RunWorkerAsync(work);
+            return true;
         }
 
         private void ChatDoWork(object sender, DoWorkEventArgs e)
@@ -458,15 +486,18 @@ namespace Harness98.Gui
             }
             if (progress.Type == AgentProgressType.ModelRequestStarted)
             {
-                status.Text = "Waiting for " + activeModel.Name + " (round " +
-                    progress.Iteration.ToString() + ")...";
+                EndCommandWatch();
+                SetChatStatus("Waiting for " + activeModel.Name + " (round " +
+                    progress.Iteration.ToString() + ")...");
                 return;
             }
             if (progress.Type == AgentProgressType.ToolStarted)
             {
-                status.Text = String.Compare(progress.ToolCall.Name,
+                SetChatStatus(String.Compare(progress.ToolCall.Name,
                     "run_command", true) == 0 ? "Running command..." :
-                    "Running " + progress.ToolCall.Name + "...";
+                    "Running " + progress.ToolCall.Name + "...");
+                if (String.Compare(progress.ToolCall.Name,
+                    "run_command", true) == 0) BeginCommandWatch();
                 ChatMessage request = new ChatMessage("assistant", "");
                 request.AddToolCall(progress.ToolCall);
                 liveTranscriptMessages.Add(request);
@@ -475,10 +506,11 @@ namespace Harness98.Gui
             }
             if (progress.Type == AgentProgressType.ToolCompleted)
             {
+                EndCommandWatch();
                 ChatMessage message = new ChatMessage("tool", progress.ToolResult);
                 message.ToolName = progress.ToolCall.Name;
                 message.ToolCallId = progress.ToolCall.Id;
-                status.Text = "Returning tool result to the model...";
+                SetChatStatus("Returning tool result to the model...");
                 liveTranscriptMessages.Add(message);
                 RenderTranscript(liveTranscriptMessages);
             }
@@ -486,15 +518,17 @@ namespace Harness98.Gui
 
         private void ChatCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
-            SetInteractive(true);
+            EndCommandWatch();
+            activeChatWork = null;
             liveTranscriptMessages = null;
             if (e.Error != null)
             {
-                status.Text = "Request failed";
+                SetChatStatus("Request failed");
                 MessageBox.Show(this, e.Error.Message, "OpenRouter request failed",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 RenderConversation();
                 RefreshConversationList();
+                ContinueQueuedMessages("Request failed");
                 return;
             }
             ChatWork work = (ChatWork)e.Result;
@@ -509,8 +543,89 @@ namespace Harness98.Gui
             UpdateCostToolbar();
             RenderConversation();
             RefreshConversationList();
-            status.Text = work.Result.Warning == null ? "Ready" : work.Result.Warning;
+            ContinueQueuedMessages(work.Result.Warning == null ? "Ready" :
+                work.Result.Warning);
+        }
+
+        private void ContinueQueuedMessages(string finishedStatus)
+        {
+            if (closeWhenIdle)
+            {
+                closeWhenIdle = false;
+                queuedMessages.Clear();
+                SetInteractive(true);
+                Close();
+                return;
+            }
+            if (queuedMessages.Count > 0)
+            {
+                string next = (string)queuedMessages.Dequeue();
+                if (StartSend(next)) return;
+                prompt.Text = next;
+            }
+            SetInteractive(true);
+            status.Text = finishedStatus;
             prompt.Focus();
+        }
+
+        private void BeginCommandWatch()
+        {
+            if (activeChatWork == null) return;
+            activeChatWork.CommandRunning = true;
+            commandStartedUtc = DateTime.UtcNow;
+            stopCommandButton.Text = "Stop command";
+            stopCommandButton.Enabled = true;
+            stopCommandButton.Visible = false;
+            commandTimer.Start();
+        }
+
+        private void EndCommandWatch()
+        {
+            commandTimer.Stop();
+            stopCommandButton.Visible = false;
+            if (activeChatWork != null) activeChatWork.CommandRunning = false;
+        }
+
+        private void CommandTimerTick(object sender, EventArgs e)
+        {
+            if (activeChatWork == null || !activeChatWork.CommandRunning)
+            {
+                EndCommandWatch();
+                return;
+            }
+            if (DateTime.UtcNow - commandStartedUtc >= TimeSpan.FromSeconds(10))
+                stopCommandButton.Visible = true;
+        }
+
+        private void StopCommandClicked(object sender, EventArgs e)
+        {
+            RequestCommandStop(false);
+        }
+
+        private void RequestCommandStop(bool stopEntireRun)
+        {
+            if (activeChatWork == null) return;
+            activeChatWork.CommandCancellationRequested = true;
+            if (stopEntireRun) activeChatWork.StopRequested = true;
+            stopCommandButton.Enabled = false;
+            stopCommandButton.Text = "Stopping...";
+            stopCommandButton.Visible = activeChatWork.CommandRunning;
+            SetChatStatus("Stopping command...");
+        }
+
+        private void SetChatStatus(string text)
+        {
+            chatStatusText = text;
+            RefreshChatStatus();
+        }
+
+        private void RefreshChatStatus()
+        {
+            string suffix = queuedMessages.Count == 0 ? "" :
+                "  (" + queuedMessages.Count.ToString() +
+                (queuedMessages.Count == 1 ? " message queued)" :
+                    " messages queued)");
+            status.Text = chatStatusText + suffix;
         }
 
         private void RenderConversation()
@@ -661,13 +776,18 @@ namespace Harness98.Gui
                     text.Append("[stderr] ").Append(errors.TrimEnd());
                 }
                 long exitCode = Json.GetInt64(result, "exit_code");
-                if (exitCode != 0)
+                bool cancelled = result["cancelled"] is bool &&
+                    (bool)result["cancelled"];
+                if (exitCode != 0 && !cancelled)
                 {
                     if (text.Length > 0) text.Append("\r\n");
                     text.Append("Exit code: ").Append(exitCode.ToString());
                 }
                 if (result["timed_out"] is bool && (bool)result["timed_out"])
                     text.Append(text.Length > 0 ? "\r\n[Timed out]" : "[Timed out]");
+                if (cancelled)
+                    text.Append(text.Length > 0 ? "\r\n[Stopped by user]" :
+                        "[Stopped by user]");
                 if (result["output_truncated"] is bool &&
                     (bool)result["output_truncated"])
                     text.Append(text.Length > 0 ? "\r\n[Output was truncated]" :
@@ -852,6 +972,18 @@ namespace Harness98.Gui
             modelButton.Enabled = enabled;
             prompt.Enabled = enabled;
             sendButton.Enabled = enabled;
+            sendButton.Text = "Send";
+            if (!enabled) EndCommandWatch();
+        }
+
+        private void SetChatBusy()
+        {
+            conversations.Enabled = false;
+            newButton.Enabled = false;
+            modelButton.Enabled = false;
+            prompt.Enabled = true;
+            sendButton.Enabled = true;
+            sendButton.Text = "Queue";
         }
 
         private void ShowAbout(object sender, EventArgs e)
@@ -876,12 +1008,33 @@ namespace Harness98.Gui
 
         private void FormWasClosed(object sender, FormClosedEventArgs e)
         {
+            commandTimer.Stop();
             core.Dispose();
         }
 
         private void FormIsClosing(object sender, FormClosingEventArgs e)
         {
             if (!IsBusy()) return;
+            if (chatWorker.IsBusy)
+            {
+                e.Cancel = true;
+                if (closeWhenIdle) return;
+                DialogResult choice = MessageBox.Show(this,
+                    "A response is still running. Stop it and exit when the " +
+                    "current operation has ended? Queued messages will be discarded.",
+                    "Exit Harness98", MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
+                if (choice == DialogResult.Yes)
+                {
+                    closeWhenIdle = true;
+                    queuedMessages.Clear();
+                    RequestCommandStop(true);
+                    SetChatStatus("Stopping before exit...");
+                    prompt.Enabled = false;
+                    sendButton.Enabled = false;
+                }
+                return;
+            }
             e.Cancel = true;
             MessageBox.Show(this, "Please wait for the current operation to finish.",
                 "Harness98", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -906,11 +1059,13 @@ namespace Harness98.Gui
             public double CostWarningAmount;
             public bool CostWarningEnabled;
             public bool CostWarningHandled;
-            public bool StopRequested;
+            public volatile bool StopRequested;
+            public volatile bool CommandCancellationRequested;
+            public volatile bool CommandRunning;
         }
 
         private sealed class BackgroundAgentProgressSink : IAgentProgressSink,
-            IAgentRunControl
+            IAgentRunControl, ICommandRunControl
         {
             private readonly MainForm owner;
             private readonly BackgroundWorker worker;
@@ -949,6 +1104,11 @@ namespace Harness98.Gui
             public bool ContinueRun
             {
                 get { return !work.StopRequested; }
+            }
+
+            public bool CancelCommand
+            {
+                get { return work.CommandCancellationRequested; }
             }
         }
 

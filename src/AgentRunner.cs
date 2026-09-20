@@ -28,7 +28,8 @@ namespace Harness98
             client = openRouter;
             apiKey = key;
             applicationDirectory = workingDirectory;
-            tools = new ToolRegistry(workingDirectory);
+            tools = new ToolRegistry(workingDirectory,
+                progressSink as ICommandRunControl);
             progress = progressSink;
             maximumIterations = toolCallLimit > 0 ? toolCallLimit :
                 DefaultMaximumIterations;
@@ -68,6 +69,7 @@ namespace Harness98
                     assistant.AddToolCall((ToolCall)completion.ToolCalls[i]);
                 conversation.Add(assistant);
 
+                bool commandCancelled = false;
                 for (int i = 0; i < completion.ToolCalls.Count; i++)
                 {
                     ToolCall call = (ToolCall)completion.ToolCalls[i];
@@ -80,27 +82,65 @@ namespace Harness98
                     result.ToolCallId = call.Id;
                     result.ToolName = call.Name;
                     conversation.Add(result);
+                    if (ToolWasCancelled(toolOutput)) commandCancelled = true;
+                }
+
+                if (!ShouldContinue())
+                {
+                    total.Answer = "The current operation was stopped by the user.";
+                    return total;
+                }
+                if (commandCancelled)
+                {
+                    return RequestFinalResponse(model, conversation, total,
+                        toolsEnabled, iteration + 2,
+                        "The user stopped the running command. Do not request " +
+                        "any more tools in this response. Explain what was " +
+                        "stopped and respond using the information already available.",
+                        "The command was stopped by the user.");
                 }
             }
 
-            ArrayList finalMessages = BuildMessages(conversation, toolsEnabled);
-            finalMessages.Add(new ChatMessage("system",
+            return RequestFinalResponse(model, conversation, total, toolsEnabled,
+                maximumIterations + 1,
                 "The maximum of " + maximumIterations.ToString() +
                 " tool-call rounds has been reached. Do not request any more " +
                 "tools. Respond to the user now using the information already " +
-                "collected, and briefly mention any work that remains."));
-            Report(AgentProgressType.ModelRequestStarted,
-                maximumIterations + 1, null, null);
+                "collected, and briefly mention any work that remains.",
+                "The tool-call limit was reached before the model produced a " +
+                "final response.");
+        }
+
+        private ChatResult RequestFinalResponse(ModelInfo model,
+            Conversation conversation, ChatResult total, bool toolsEnabled,
+            int iteration, string instruction, string emptyAnswer)
+        {
+            ArrayList finalMessages = BuildMessages(conversation, toolsEnabled);
+            finalMessages.Add(new ChatMessage("system", instruction));
+            Report(AgentProgressType.ModelRequestStarted, iteration, null, null);
             ChatCompletion finalCompletion = client.SendChatWithUsage(apiKey,
                 model.Id, finalMessages, toolsEnabled ? tools.DefinitionsJson : null,
                 toolsEnabled);
             ApplyCostFallback(finalCompletion, model);
             AddUsage(total, finalCompletion);
-            ReportUsage(finalCompletion, maximumIterations + 1);
+            ReportUsage(finalCompletion, iteration);
             total.Answer = finalCompletion.Answer.Length == 0 ?
-                "The tool-call limit was reached before the model produced a " +
-                "final response." : finalCompletion.Answer;
+                emptyAnswer : finalCompletion.Answer;
             return total;
+        }
+
+        private static bool ToolWasCancelled(string output)
+        {
+            try
+            {
+                Hashtable result = Json.AsObject(Json.Parse(output));
+                return result != null && result["cancelled"] is bool &&
+                    (bool)result["cancelled"];
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private bool ShouldContinue()

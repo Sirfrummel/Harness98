@@ -16,7 +16,7 @@ interface over the same application core.
 
 ## Status
 
-The current version is **3.7.1**. It has been tested on a physical Windows 98
+The current version is **3.8.0**. It has been tested on a physical Windows 98
 Second Edition computer with the .NET Framework 2.0 CLR.
 
 Working features include:
@@ -28,6 +28,8 @@ Working features include:
 - Optional automatic conversation titles
 - Session token and cost tracking, with a configurable cost warning
 - Live tool-call progress in the GUI
+- Queued user messages while an agent run is active
+- A delayed Stop command control for long-running commands
 - `run_command`, `read_file`, `write_file`, and `edit_file` agent tools
 - Bounded command output and file reads
 - Basic fenced-code formatting in the GUI transcript
@@ -101,7 +103,13 @@ file in the assembled package.
 The GUI provides a scrollable rich-text transcript, a toggleable conversation
 sidebar, a searchable model picker, a three-line composer, settings, update
 checks, and an optional session-cost toolbar. Press **Enter** to send and
-**Shift+Enter** to insert a new line.
+**Shift+Enter** to insert a new line. While a response is active, additional
+messages can be queued and are sent in order after the current turn finishes.
+
+When a command has run for ten seconds, a **Stop command** button appears below
+the Send/Queue button. Stopping a command terminates its discovered descendant
+processes as well as its `COMMAND.COM` wrapper, then asks the model for a final
+response with further tools disabled.
 
 ### Command-line interface
 

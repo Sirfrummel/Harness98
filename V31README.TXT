@@ -13,6 +13,8 @@ GUI FEATURES
 - Enter sends; Shift+Enter inserts a new line
 - Optional session cost and token toolbar under the View menu
 - Live command and output progress while the agent is working
+- Messages can be typed and queued while an agent run is active
+- Commands running for ten seconds show a Stop command button
 - Toggleable conversation sidebar and New Conversation command
 - Reusable model picker with text, vision-input, and image-output filters
 - Tool-capable model filter and COMMAND.COM command execution
@@ -36,6 +38,11 @@ Windows 98) with a 30-second timeout.  Harness98 returns the exit code, up to
 shows a 2 KB preview.  Tool requests and results are retained in saved
 conversations.  After ten tool rounds, Harness98 asks the model for a final
 answer with further tool calls disabled.
+
+After a command has run for ten seconds, the GUI shows Stop command beneath the
+Send/Queue button.  Stopping terminates the COMMAND.COM wrapper and any child
+processes Harness98 can discover, then returns the cancellation to the model
+for a final response without more tools.
 
 AUTOMATIC TITLES
 ----------------

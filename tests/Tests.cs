@@ -14,6 +14,7 @@ public sealed class Tests
         Run("Chat history serialization", TestChat);
         Run("Tool calling protocol", TestToolProtocol);
         Run("Command execution and output capture", TestCommandExecution);
+        Run("Command cancellation final response", TestCommandCancellation);
         Run("Bounded text file tools", TestFileTools);
         Run("Rich text code fences", TestRichTextCodeFences);
         Run("Live agent progress", TestAgentProgress);
@@ -262,6 +263,52 @@ public sealed class Tests
         ChatResult result = runner.Run(model, conversation);
         AssertEqual("0.000004", result.Cost.ToString("0.000000",
             System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    private static void TestCommandCancellation()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "h98-cancel-" +
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        File.WriteAllText(Path.Combine(root, "LOOP.BAT"),
+            "@ECHO OFF\r\n:LOOP\r\nGOTO LOOP\r\n");
+        try
+        {
+            FakeTransport transport = new FakeTransport();
+            transport.PostResponses.Add(Ok("{\"choices\":[{\"message\":{" +
+                "\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{" +
+                "\"id\":\"cancel-call\",\"type\":\"function\"," +
+                "\"function\":{\"name\":\"run_command\",\"arguments\":" +
+                "\"{\\\"command\\\":\\\"LOOP.BAT\\\"}\"}}]}}]}"));
+            transport.PostResponses.Add(Ok("{\"choices\":[{\"message\":{" +
+                "\"role\":\"assistant\",\"content\":" +
+                "\"The command was stopped.\"}}]}"));
+            ModelInfo model = new ModelInfo();
+            model.Id = "test/cancel-command";
+            model.Name = "Cancel command";
+            model.SupportsTools = true;
+            Conversation conversation = new Conversation();
+            conversation.Add("user", "Run something");
+            CancelCommandSink control = new CancelCommandSink();
+            AgentRunner runner = new AgentRunner(new OpenRouterClient(transport),
+                "key", root, control);
+            ChatResult result = runner.Run(model, conversation);
+
+            AssertEqual("The command was stopped.", result.Answer);
+            AssertEqual("3", conversation.Count.ToString());
+            ChatMessage toolResult = (ChatMessage)conversation.Messages[2];
+            Hashtable output = Json.AsObject(Json.Parse(toolResult.Content));
+            if (!(output["cancelled"] is bool) || !(bool)output["cancelled"])
+                throw new Exception(
+                    "The command result was not marked cancelled.");
+            Hashtable finalRequest = Json.AsObject(Json.Parse(
+                transport.LastPostBody));
+            AssertEqual("none", Json.GetString(finalRequest, "tool_choice"));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
     }
 
     private static void TestFileTools()
@@ -673,6 +720,32 @@ public sealed class Tests
         public bool ContinueRun
         {
             get { return continueRun; }
+        }
+    }
+
+    private sealed class CancelCommandSink : IAgentProgressSink,
+        ICommandRunControl
+    {
+        private volatile bool cancelCommand;
+
+        public void Report(AgentProgress progress)
+        {
+            if (progress.Type != AgentProgressType.ToolStarted) return;
+            System.Threading.Thread timer = new System.Threading.Thread(
+                new System.Threading.ThreadStart(RequestCancellation));
+            timer.IsBackground = true;
+            timer.Start();
+        }
+
+        private void RequestCancellation()
+        {
+            System.Threading.Thread.Sleep(250);
+            cancelCommand = true;
+        }
+
+        public bool CancelCommand
+        {
+            get { return cancelCommand; }
         }
     }
 }

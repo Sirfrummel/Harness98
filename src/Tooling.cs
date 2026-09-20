@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 
@@ -16,8 +17,15 @@ namespace Harness98
         private readonly string temporaryDirectory;
 
         public ToolRegistry(string defaultWorkingDirectory)
+            : this(defaultWorkingDirectory, null)
         {
-            commandTool = new CommandTool(defaultWorkingDirectory);
+        }
+
+        public ToolRegistry(string defaultWorkingDirectory,
+            ICommandRunControl commandControl)
+        {
+            commandTool = new CommandTool(defaultWorkingDirectory,
+                commandControl);
             FileToolServices files = new FileToolServices(defaultWorkingDirectory);
             readFileTool = new ReadFileTool(files);
             writeFileTool = new WriteFileTool(files);
@@ -62,10 +70,17 @@ namespace Harness98
         private const int MaximumStandardOutputCharacters = 8192;
         private const int MaximumStandardErrorCharacters = 2048;
         private readonly string defaultWorkingDirectory;
+        private readonly ICommandRunControl runControl;
 
         public CommandTool(string workingDirectory)
+            : this(workingDirectory, null)
+        {
+        }
+
+        public CommandTool(string workingDirectory, ICommandRunControl control)
         {
             defaultWorkingDirectory = Path.GetFullPath(workingDirectory);
+            runControl = control;
         }
 
         public string DefinitionJson
@@ -115,8 +130,10 @@ namespace Harness98
                 MaximumStandardErrorCharacters);
             int exitCode = -1;
             bool timedOut = false;
+            bool cancelled = runControl != null && runControl.CancelCommand;
             try
             {
+                if (cancelled) throw new CommandCancelledException();
                 string commandInterpreter = Environment.GetEnvironmentVariable(
                     "COMSPEC");
                 if (commandInterpreter == null || commandInterpreter.Length == 0)
@@ -144,22 +161,36 @@ namespace Harness98
                     outputThread.Start();
                     errorThread.Start();
 
-                    if (!process.WaitForExit(TimeoutMilliseconds))
+                    DateTime deadline = DateTime.UtcNow.AddMilliseconds(
+                        TimeoutMilliseconds);
+                    while (!process.WaitForExit(100))
                     {
-                        timedOut = true;
-                        try { process.Kill(); }
-                        catch { }
-                        process.WaitForExit(2000);
+                        if (runControl != null && runControl.CancelCommand)
+                        {
+                            cancelled = true;
+                            TerminateProcessTree(process);
+                            break;
+                        }
+                        if (DateTime.UtcNow >= deadline)
+                        {
+                            timedOut = true;
+                            TerminateProcessTree(process);
+                            break;
+                        }
                     }
-                    if (!timedOut || process.HasExited)
+                    if (timedOut || cancelled) process.WaitForExit(2000);
+                    try
                     {
-                        process.WaitForExit();
-                        try { exitCode = process.ExitCode; }
-                        catch { exitCode = -1; }
+                        if (process.HasExited) exitCode = process.ExitCode;
                     }
+                    catch { exitCode = -1; }
                     outputThread.Join(2000);
                     errorThread.Join(2000);
                 }
+            }
+            catch (CommandCancelledException)
+            {
+                // The UI cancelled before the process was started.
             }
             catch (Exception ex)
             {
@@ -175,6 +206,8 @@ namespace Harness98
             json.Append(exitCode.ToString());
             json.Append(",\"timed_out\":");
             json.Append(timedOut ? "true" : "false");
+            json.Append(",\"cancelled\":");
+            json.Append(cancelled ? "true" : "false");
             json.Append(",\"stdout\":");
             json.Append(Json.Quote(standardOutput.Text));
             json.Append(",\"stderr\":");
@@ -184,6 +217,14 @@ namespace Harness98
                 "true" : "false");
             json.Append('}');
             return json.ToString();
+        }
+
+        private static void TerminateProcessTree(Process process)
+        {
+            try { ProcessTreeTerminator.TerminateDescendants(process.Id); }
+            catch { }
+            try { process.Kill(); }
+            catch { }
         }
 
         private string ResolveWorkingDirectory(string requested)
@@ -198,6 +239,10 @@ namespace Harness98
         private static string Error(string message)
         {
             return "{\"error\":" + Json.Quote(message) + "}";
+        }
+
+        private sealed class CommandCancelledException : Exception
+        {
         }
 
         private sealed class ReaderWorker
@@ -263,6 +308,103 @@ namespace Harness98
             public bool Truncated
             {
                 get { lock (value) { return truncated; } }
+            }
+        }
+    }
+
+    internal static class ProcessTreeTerminator
+    {
+        private const uint SnapshotProcessFlag = 0x00000002;
+        private static readonly IntPtr InvalidHandle = new IntPtr(-1);
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+        private struct ProcessEntry32
+        {
+            public uint Size;
+            public uint Usage;
+            public uint ProcessId;
+            public IntPtr DefaultHeapId;
+            public uint ModuleId;
+            public uint Threads;
+            public uint ParentProcessId;
+            public int BasePriority;
+            public uint Flags;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+            public string ExecutableFile;
+        }
+
+        private sealed class ProcessRelation
+        {
+            public int ProcessId;
+            public int ParentProcessId;
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern IntPtr CreateToolhelp32Snapshot(uint flags,
+            uint processId);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Ansi, SetLastError = true)]
+        private static extern bool Process32First(IntPtr snapshot,
+            ref ProcessEntry32 entry);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Ansi, SetLastError = true)]
+        private static extern bool Process32Next(IntPtr snapshot,
+            ref ProcessEntry32 entry);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool CloseHandle(IntPtr handle);
+
+        public static void TerminateDescendants(int rootProcessId)
+        {
+            ArrayList processes = SnapshotProcesses();
+            Hashtable visited = new Hashtable();
+            TerminateChildren(rootProcessId, processes, visited);
+        }
+
+        private static ArrayList SnapshotProcesses()
+        {
+            ArrayList processes = new ArrayList();
+            IntPtr snapshot = CreateToolhelp32Snapshot(SnapshotProcessFlag, 0);
+            if (snapshot == InvalidHandle) return processes;
+            try
+            {
+                ProcessEntry32 entry = new ProcessEntry32();
+                entry.Size = (uint)Marshal.SizeOf(typeof(ProcessEntry32));
+                if (!Process32First(snapshot, ref entry)) return processes;
+                do
+                {
+                    ProcessRelation relation = new ProcessRelation();
+                    relation.ProcessId = (int)entry.ProcessId;
+                    relation.ParentProcessId = (int)entry.ParentProcessId;
+                    processes.Add(relation);
+                    entry.Size = (uint)Marshal.SizeOf(typeof(ProcessEntry32));
+                }
+                while (Process32Next(snapshot, ref entry));
+            }
+            finally
+            {
+                CloseHandle(snapshot);
+            }
+            return processes;
+        }
+
+        private static void TerminateChildren(int parentProcessId,
+            ArrayList processes, Hashtable visited)
+        {
+            if (visited.ContainsKey(parentProcessId)) return;
+            visited[parentProcessId] = true;
+            for (int i = 0; i < processes.Count; i++)
+            {
+                ProcessRelation relation = (ProcessRelation)processes[i];
+                if (relation.ParentProcessId != parentProcessId) continue;
+                TerminateChildren(relation.ProcessId, processes, visited);
+                try
+                {
+                    Process child = Process.GetProcessById(relation.ProcessId);
+                    child.Kill();
+                    child.Dispose();
+                }
+                catch { }
             }
         }
     }

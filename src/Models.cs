@@ -84,6 +84,11 @@ namespace Harness98
         bool ContinueRun { get; }
     }
 
+    public interface ICommandRunControl
+    {
+        bool CancelCommand { get; }
+    }
+
     public sealed class Conversation
     {
         private readonly ArrayList messages = new ArrayList();
