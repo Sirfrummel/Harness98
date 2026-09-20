@@ -467,8 +467,10 @@ namespace Harness98.Gui
             }
             if (progress.Type == AgentProgressType.ToolStarted)
             {
-                string command = ReadToolCommand(progress.ToolCall.Arguments);
-                status.Text = "Running command...";
+                string command = DescribeToolCall(progress.ToolCall);
+                status.Text = String.Compare(progress.ToolCall.Name,
+                    "run_command", true) == 0 ? "Running command..." :
+                    "Running " + progress.ToolCall.Name + "...";
                 AppendLiveCommand(command);
                 return;
             }
@@ -476,7 +478,7 @@ namespace Harness98.Gui
             {
                 ChatMessage message = new ChatMessage("tool", progress.ToolResult);
                 message.ToolName = progress.ToolCall.Name;
-                status.Text = "Returning command output to the model...";
+                status.Text = "Returning tool result to the model...";
                 AppendLiveToolResult(message);
             }
         }
@@ -569,7 +571,7 @@ namespace Harness98.Gui
                     ToolCall call = (ToolCall)message.ToolCalls[i];
                     rtf.Append("\\pard\\li110\\ri110\\sb80\\sa20\\cf3 *");
                     rtf.Append("\\b Ran\\b0  ");
-                    rtf.Append(RtfEncode(ReadToolCommand(call.Arguments)));
+                    rtf.Append(RtfEncode(DescribeToolCall(call)));
                     rtf.Append("\\cf0\\par ");
                 }
                 return;
@@ -590,17 +592,20 @@ namespace Harness98.Gui
             rtf.Append("\\par ");
         }
 
-        private static string ReadToolCommand(string argumentsText)
+        private static string DescribeToolCall(ToolCall call)
         {
             try
             {
-                Hashtable arguments = Json.AsObject(Json.Parse(argumentsText));
+                Hashtable arguments = Json.AsObject(Json.Parse(call.Arguments));
                 string command = Json.GetString(arguments, "command");
-                return command == null ? argumentsText : command;
+                if (command != null) return command;
+                string path = Json.GetString(arguments, "path");
+                if (path != null) return call.Name + " " + path;
+                return call.Name + " " + call.Arguments;
             }
             catch
             {
-                return argumentsText;
+                return call.Name + " " + call.Arguments;
             }
         }
 
@@ -612,6 +617,21 @@ namespace Harness98.Gui
                 if (result == null) return message.Content;
                 string error = Json.GetString(result, "error");
                 if (error != null) return CompactLines("Error: " + error);
+                if (String.Compare(message.ToolName, "read_file", true) == 0)
+                {
+                    string content = Json.GetString(result, "content");
+                    if (content == null) content = "(no text returned)";
+                    if (result["truncated"] is bool && (bool)result["truncated"])
+                    {
+                        long next = Json.GetInt64(result, "next_start_line");
+                        content += next > 0 ? "\r\n[More content starts at line " +
+                            next.ToString() + "]" :
+                            "\r\n[One line exceeded the display/read limit]";
+                    }
+                    return CompactLines(content);
+                }
+                string toolMessage = Json.GetString(result, "message");
+                if (toolMessage != null) return CompactLines(toolMessage);
                 StringBuilder text = new StringBuilder();
                 string output = Json.GetString(result, "stdout");
                 string errors = Json.GetString(result, "stderr");

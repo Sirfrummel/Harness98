@@ -157,11 +157,17 @@ namespace Harness98
             {
                 messages.Add(new ChatMessage("system",
                     "You are running in Harness98 on a Windows 98-era computer. " +
-                    "You can use run_command to inspect files, run programs, and " +
-                    "make changes. Commands are executed through COMMAND.COM. " +
-                    "Prefer Windows 98-compatible commands and inspect command " +
-                    "results before deciding the next step. The default working " +
-                    "directory is " + applicationDirectory + "."));
+                    "Use read_file, write_file, and edit_file for text files, and " +
+                    "run_command to run programs or native commands. Commands use " +
+                    "Windows 98 COMMAND.COM, not CMD.EXE. Never use &, &&, ||, " +
+                    "parenthesized command groups, or caret escaping. Use separate " +
+                    "tool calls when you need to inspect intermediate results. For " +
+                    "predetermined multi-step work, write a .BAT file with one " +
+                    "command per line and run it. The application and default " +
+                    "working directory is " + applicationDirectory + ". For " +
+                    "temporary scripts or scratch files, prefer " +
+                    tools.TemporaryDirectory + ". Inspect results before deciding " +
+                    "the next step."));
             }
             for (int i = 0; i < conversation.Messages.Count; i++)
                 messages.Add(conversation.Messages[i]);

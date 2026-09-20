@@ -10,21 +10,48 @@ namespace Harness98
     public sealed class ToolRegistry
     {
         private readonly CommandTool commandTool;
+        private readonly ReadFileTool readFileTool;
+        private readonly WriteFileTool writeFileTool;
+        private readonly EditFileTool editFileTool;
+        private readonly string temporaryDirectory;
 
         public ToolRegistry(string defaultWorkingDirectory)
         {
             commandTool = new CommandTool(defaultWorkingDirectory);
+            FileToolServices files = new FileToolServices(defaultWorkingDirectory);
+            readFileTool = new ReadFileTool(files);
+            writeFileTool = new WriteFileTool(files);
+            editFileTool = new EditFileTool(files);
+            temporaryDirectory = Path.Combine(Path.GetTempPath(), "HARNESS98");
+            Directory.CreateDirectory(temporaryDirectory);
         }
 
         public string DefinitionsJson
         {
-            get { return "[" + commandTool.DefinitionJson + "]"; }
+            get
+            {
+                return "[" + commandTool.DefinitionJson + "," +
+                    readFileTool.DefinitionJson + "," +
+                    writeFileTool.DefinitionJson + "," +
+                    editFileTool.DefinitionJson + "]";
+            }
+        }
+
+        public string TemporaryDirectory
+        {
+            get { return temporaryDirectory; }
         }
 
         public string Execute(ToolCall call)
         {
             if (String.Compare(call.Name, "run_command", true) == 0)
                 return commandTool.Execute(call.Arguments);
+            if (String.Compare(call.Name, "read_file", true) == 0)
+                return readFileTool.Execute(call.Arguments);
+            if (String.Compare(call.Name, "write_file", true) == 0)
+                return writeFileTool.Execute(call.Arguments);
+            if (String.Compare(call.Name, "edit_file", true) == 0)
+                return editFileTool.Execute(call.Arguments);
             return "{\"error\":" + Json.Quote("Unknown tool: " + call.Name) + "}";
         }
     }

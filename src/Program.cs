@@ -375,8 +375,8 @@ namespace Harness98
                 if (progress.Type == AgentProgressType.ToolStarted)
                 {
                     Console.WriteLine();
-                    Console.WriteLine("Command: " + ReadCommand(
-                        progress.ToolCall.Arguments));
+                    Console.WriteLine("Tool: " + DescribeToolCall(
+                        progress.ToolCall));
                 }
                 else if (progress.Type == AgentProgressType.ToolCompleted)
                 {
@@ -385,17 +385,20 @@ namespace Harness98
                 }
             }
 
-            private static string ReadCommand(string arguments)
+            private static string DescribeToolCall(ToolCall call)
             {
                 try
                 {
-                    Hashtable values = Json.AsObject(Json.Parse(arguments));
+                    Hashtable values = Json.AsObject(Json.Parse(call.Arguments));
                     string command = Json.GetString(values, "command");
-                    return command == null ? arguments : command;
+                    if (command != null) return command;
+                    string path = Json.GetString(values, "path");
+                    return path == null ? call.Name + " " + call.Arguments :
+                        call.Name + " " + path;
                 }
                 catch
                 {
-                    return arguments;
+                    return call.Name + " " + call.Arguments;
                 }
             }
 
@@ -406,6 +409,10 @@ namespace Harness98
                     Hashtable result = Json.AsObject(Json.Parse(resultText));
                     string error = Json.GetString(result, "error");
                     if (error != null) return "Tool error: " + error;
+                    string content = Json.GetString(result, "content");
+                    if (content != null) return content;
+                    string message = Json.GetString(result, "message");
+                    if (message != null) return message;
                     string output = Json.GetString(result, "stdout");
                     string errors = Json.GetString(result, "stderr");
                     string text = output == null ? "" : output.TrimEnd();

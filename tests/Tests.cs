@@ -14,6 +14,7 @@ public sealed class Tests
         Run("Chat history serialization", TestChat);
         Run("Tool calling protocol", TestToolProtocol);
         Run("Command execution and output capture", TestCommandExecution);
+        Run("Bounded text file tools", TestFileTools);
         Run("Live agent progress", TestAgentProgress);
         Run("Tool limit final response", TestToolLimitFinalResponse);
         Run("Configurable tool limit", TestConfigurableToolLimit);
@@ -260,6 +261,58 @@ public sealed class Tests
         ChatResult result = runner.Run(model, conversation);
         AssertEqual("0.000004", result.Cost.ToString("0.000000",
             System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    private static void TestFileTools()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "h98-files-" +
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            ToolRegistry registry = new ToolRegistry(root);
+            ArrayList definitions = Json.AsArray(Json.Parse(
+                registry.DefinitionsJson));
+            AssertEqual("4", definitions.Count.ToString());
+
+            FileToolServices files = new FileToolServices(root);
+            WriteFileTool writer = new WriteFileTool(files);
+            string written = writer.Execute("{\"path\":\"notes.txt\"," +
+                "\"content\":\"one\\ntwo\\nthree\\nfour\\nfive\\nsix\"}");
+            if (Json.GetString(Json.AsObject(Json.Parse(written)), "error") != null)
+                throw new Exception("write_file failed: " + written);
+
+            ReadFileTool reader = new ReadFileTool(files);
+            string readText = reader.Execute("{\"path\":\"notes.txt\"," +
+                "\"start_line\":2,\"max_lines\":3}");
+            Hashtable read = Json.AsObject(Json.Parse(readText));
+            AssertEqual("two\r\nthree\r\nfour", Json.GetString(read, "content"));
+            AssertEqual("5", Json.GetInt64(read, "next_start_line").ToString());
+
+            EditFileTool editor = new EditFileTool(files);
+            string edited = editor.Execute("{\"path\":\"notes.txt\"," +
+                "\"old_text\":\"three\",\"new_text\":\"THREE\"}");
+            if (Json.GetString(Json.AsObject(Json.Parse(edited)), "error") != null)
+                throw new Exception("edit_file failed: " + edited);
+            string contents = File.ReadAllText(Path.Combine(root, "notes.txt"));
+            if (contents.IndexOf("THREE") < 0)
+                throw new Exception("The exact edit was not written.");
+
+            string ambiguous = editor.Execute("{\"path\":\"notes.txt\"," +
+                "\"old_text\":\"o\",\"new_text\":\"X\"}");
+            if (Json.GetString(Json.AsObject(Json.Parse(ambiguous)), "error") == null)
+                throw new Exception("An ambiguous edit was accepted.");
+
+            File.WriteAllBytes(Path.Combine(root, "binary.bin"),
+                new byte[] { 77, 90, 0, 1, 2, 3 });
+            string binary = reader.Execute("{\"path\":\"binary.bin\"}");
+            if (Json.GetString(Json.AsObject(Json.Parse(binary)), "error") == null)
+                throw new Exception("A binary file was returned as text.");
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
     }
 
     private static void TestLimitSettingsPersistence()

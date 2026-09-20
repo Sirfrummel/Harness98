@@ -145,6 +145,12 @@ Version 3.5.0 condenses command activity to two leading and two trailing output
 lines, adds configurable tool-round and session-cost warnings under a Limits
 settings tab, and simplifies the idle status bar to `Ready`.
 
+Version 3.6.0 adds bounded `read_file`, `write_file`, and exact-match
+`edit_file` tools. Binary-looking files are refused, writes preserve detected
+text encodings, and the agent prompt documents Windows 98 `COMMAND.COM`
+limitations. Scratch files are directed to a dedicated `HARNESS98` folder
+beneath the Windows temporary directory.
+
 ## Release process
 
 The application version has one source of truth in `src/VersionInfo.cs`.
