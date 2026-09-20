@@ -252,6 +252,16 @@ The application version has one source of truth:
   reproducibility. Review [`THIRD_PARTY.md`](THIRD_PARTY.md) and
   [`vendor/libcurl-win98/README.md`](vendor/libcurl-win98/README.md) before
   redistributing binaries.
-- This repository does not currently include a project-level license. Public
-  source availability alone does not grant redistribution or modification
-  rights; add a license before accepting outside contributions or releases.
+
+## License
+
+Harness98's original source code and documentation are available under the
+[Zero-Clause BSD license](LICENSE) (`0BSD`). You may use, copy, modify, or
+distribute them for any purpose, with or without a fee and without an
+attribution requirement.
+
+Bundled third-party programs, libraries, and certificate data are not
+relicensed under 0BSD. They remain subject to their respective upstream terms.
+See [`THIRD_PARTY.md`](THIRD_PARTY.md) and
+[`vendor/libcurl-win98/README.md`](vendor/libcurl-win98/README.md) for the
+currently recorded provenance and redistribution notes.
