@@ -22,6 +22,8 @@ package="$project_root/dist/harness98-v$version"
 updates_parent="$project_root/dist/harness98-updates"
 stable="$updates_parent/stable"
 manifest="$stable/MANIFEST.INI"
+response_dir="$project_root/build/windows98"
+certificate_bundle="$project_root/experiments/curl-tls/cacert.pem"
 
 recreate_owned_directory() {
     local target=$1
@@ -45,11 +47,11 @@ recreate_owned_directory() {
 echo "Building Harness98 $version..."
 cd "$project_root"
 cp vendor/libcurl-win98/LibCurlNet.dll .
-wine "$csc" @UPDATER.RSP
-wine "$csc" @LAUNCHER31.RSP
-wine "$csc" @RESTART.RSP
-wine "$csc" @GUI31.RSP
-wine "$csc" @CLI31.RSP
+wine "$csc" @build/windows98/UPDATER.RSP
+wine "$csc" @build/windows98/LAUNCHER.RSP
+wine "$csc" @build/windows98/RESTART.RSP
+wine "$csc" @build/windows98/GUI.RSP
+wine "$csc" @build/windows98/CLI.RSP
 
 echo "Running .NET 2.0 compatibility tests..."
 wine "$csc" /nologo /target:exe /platform:x86 \
@@ -61,11 +63,11 @@ wine HARNESS98-TESTS.EXE
 echo "Assembling fresh package..."
 recreate_owned_directory "$package"
 mkdir -p "$package/SRC" "$package/GUI" "$package/LAUNCHER" \
-    "$package/UPDATER" "$package/RESTARTER"
+    "$package/UPDATER" "$package/RESTARTER" "$package/BUILD/WINDOWS98"
 cp HARNESS98.EXE H98GUI.EXE H98CLI.EXE H98RESTART.EXE \
-    HARNESS98-UPDATER.EXE BUILD31.BAT LAUNCHER31.RSP RESTART.RSP \
-    GUI31.RSP CLI31.RSP UPDATER.RSP \
-    RUN3.BAT RUNCLI.BAT HARNESS98.CFG V31README.TXT "$package/"
+    HARNESS98-UPDATER.EXE BUILD.BAT RUN.BAT RUNCLI.BAT HARNESS98.CFG \
+    README.TXT LICENSE THIRD_PARTY.md "$package/"
+cp "$response_dir"/*.RSP "$package/BUILD/WINDOWS98/"
 cp src/*.cs "$package/SRC/"
 cp gui/*.cs "$package/GUI/"
 cp launcher/*.cs "$package/LAUNCHER/"
@@ -76,7 +78,7 @@ cp vendor/libcurl-win98/LibCurlNet.dll \
     vendor/libcurl-win98/libcurl.dll \
     vendor/libcurl-win98/libeay32.dll \
     vendor/libcurl-win98/ssleay32.dll "$package/"
-cp dist/openrouter-chat-v2/CACERT.PEM "$package/"
+cp "$certificate_bundle" "$package/CACERT.PEM"
 printf '%s\r\n' "$version" > "$package/VERSION.TXT"
 if find "$package" -type f \( -iname '*.key' -o -iname 'OPENROUT.KEY' \) \
     -print -quit | grep -q .; then
@@ -106,15 +108,17 @@ fi
 add_update_file H98GUI.EXE "$project_root/H98GUI.EXE"
 add_update_file H98CLI.EXE "$project_root/H98CLI.EXE"
 add_update_file H98RESTART.EXE "$project_root/H98RESTART.EXE"
-add_update_file RUN3.BAT "$project_root/RUN3.BAT"
+add_update_file RUN.BAT "$project_root/RUN.BAT"
 add_update_file RUNCLI.BAT "$project_root/RUNCLI.BAT"
-add_update_file V31README.TXT "$project_root/V31README.TXT"
+add_update_file README.TXT "$project_root/README.TXT"
+add_update_file LICENSE "$project_root/LICENSE"
+add_update_file THIRD_PARTY.md "$project_root/THIRD_PARTY.md"
 add_update_file LibCurlNet.dll "$project_root/vendor/libcurl-win98/LibCurlNet.dll"
 add_update_file LibCurlShim.dll "$project_root/vendor/libcurl-win98/LibCurlShim.dll"
 add_update_file libcurl.dll "$project_root/vendor/libcurl-win98/libcurl.dll"
 add_update_file libeay32.dll "$project_root/vendor/libcurl-win98/libeay32.dll"
 add_update_file ssleay32.dll "$project_root/vendor/libcurl-win98/ssleay32.dll"
-add_update_file CACERT.PEM "$project_root/dist/openrouter-chat-v2/CACERT.PEM"
+add_update_file CACERT.PEM "$certificate_bundle"
 
 echo "Verifying manifest hashes..."
 while IFS='=|' read -r kind name expected; do

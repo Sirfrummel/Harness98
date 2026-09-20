@@ -165,7 +165,8 @@ namespace Harness98
                 return besideProgram;
             }
 
-            return Path.Combine(Path.Combine(baseDirectory, "curl-probe"), fileName);
+            return Path.Combine(Path.Combine(baseDirectory,
+                "experiments\\curl-tls"), fileName);
         }
 
         private static void WriteUtf8(string path, string value)

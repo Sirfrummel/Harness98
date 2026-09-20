@@ -19,6 +19,22 @@ interface over the same application core.
 The current version is **3.8.0**. It has been tested on a physical Windows 98
 Second Edition computer with the .NET Framework 2.0 CLR.
 
+## Start here
+
+- **Running Harness98:** use a complete release package, copy the whole folder
+  to Windows 98, and launch `HARNESS98.EXE`. Do not copy individual DLLs or
+  executables from the source tree.
+- **Building on Windows 98:** clone or copy the source tree and run `BUILD.BAT`
+  from its root.
+- **Building a release on Linux:** configure a Wine prefix containing the .NET
+  2.0 compiler, then run `scripts/release.sh`.
+- **Updating an existing installation:** use **Tools > Check for updates** in
+  the GUI. The permanent launcher applies the staged update on restart.
+
+The root `README.TXT` is a compact quick-start guide intended for the target
+Windows 98 machine. Historical compatibility probes live under `experiments/`
+and are not required to run Harness98.
+
 Working features include:
 
 - GUI and CLI frontends backed by a shared core
@@ -65,9 +81,6 @@ Keep the executables, DLLs, and certificate bundle together in one folder.
 - `MSVCR80.dll` installed in the Windows system directory or placed beside the
   Harness98 executables
 
-The Linux release script additionally expects Bash, Wine with the .NET 2.0
-compiler configured, and standard Unix tools such as `sha256sum`.
-
 ## Installation
 
 1. Copy the **entire** release folder to the Windows 98 computer. A short local
@@ -80,6 +93,7 @@ compiler configured, and standard Unix tools such as `sha256sum`.
 `HARNESS98.EXE` is the permanent launcher. It applies any previously staged
 update before opening `H98GUI.EXE`, so a desktop shortcut should point to the
 launcher. Run `H98CLI.EXE` or `RUNCLI.BAT` to use the command-line interface.
+`RUN.BAT` is also provided as a build-if-needed GUI launcher for source trees.
 
 ## API-key storage
 
@@ -174,26 +188,40 @@ share and will not work elsewhere. Set your own path in the GUI settings or in
 
 ## Building
 
-On Windows 98, run:
+### Windows 98
+
+From the repository root, run:
 
 ```bat
-BUILD31.BAT
+BUILD.BAT
 ```
 
 This builds the launcher, GUI, CLI, updater, and restart helper with the .NET
-2.0 compiler. The response files keep compiler options compatible with the
-target machine.
+2.0 compiler. Compiler response files are kept under `build/windows98/` and
+preserve options compatible with the target machine.
 
-For a reproducible package and update manifest from the development system,
-run:
+### Linux
+
+The release builder requires:
+
+- Bash
+- Wine configured to run the .NET Framework 2.0 C# compiler
+- `sha256sum`, `sed`, `find`, `grep`, `cut`, and standard file utilities
+
+The default compiler path inside Wine is
+`C:\windows\Microsoft.NET\Framework\v2.0.50727\csc.exe`. Set the `WINE_CSC`
+environment variable if your compiler is elsewhere.
+
+To compile every executable, run the compatibility suite, and create a clean
+package plus update manifest under `dist/`, run:
 
 ```sh
 scripts/release.sh
 ```
 
-The script builds all executables, runs the compatibility tests, creates a
-credential-free package, generates SHA-256 hashes, and stops before publishing.
-Publishing is an explicit separate action:
+The local command does not publish anything. Publishing to the configured
+update destination is an explicit separate action and additionally requires
+`kioclient5` for the default SMB transport:
 
 ```sh
 scripts/release.sh --publish
@@ -211,8 +239,9 @@ See [`scripts/README.md`](scripts/README.md) for release-script configuration.
 | `updater/` | Restart-time update installer |
 | `restarter/` | GUI restart helper |
 | `tests/` | .NET 2.0 compatibility tests |
+| `build/windows98/` | Current .NET 2.0 compiler response files |
 | `vendor/libcurl-win98/` | Matched LibCurl.NET and native TLS dependencies |
-| `probe/`, `curl-probe/`, `gui-probe/` | Early compatibility probes retained for reference |
+| `experiments/` | Historical .NET HTTP, curl/TLS, and Windows Forms probes |
 | `scripts/` | Release and publishing automation |
 
 Third-party binary provenance and hashes are documented in

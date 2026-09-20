@@ -1,6 +1,6 @@
 # Third-party files
 
-## `curl-probe/curl.exe`
+## `experiments/curl-tls/curl.exe`
 
 - Project: `OmegaAOL/curl-windows98`
 - Project URL: https://github.com/OmegaAOL/curl-windows98
@@ -26,7 +26,7 @@ The upstream repository does not declare a repository-level license. Review the
 licenses and redistribution terms of curl, OpenSSL, zlib, and any other bundled
 components before redistributing this binary beyond this restoration project.
 
-## `curl-probe/cacert.pem`
+## `experiments/curl-tls/cacert.pem`
 
 - Source: https://curl.se/ca/cacert.pem
 - SHA-256: `f66dff1bdf8f96060b8177976f8b7d9254bc89bc4db933d769f7384d28480bc9`

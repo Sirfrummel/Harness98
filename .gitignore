@@ -9,7 +9,7 @@ obj/
 dist/
 
 # The verified compatibility binary is intentionally versioned.
-!curl-probe/curl.exe
+!experiments/curl-tls/curl.exe
 !vendor/libcurl-win98/*.dll
 
 # Probe output
