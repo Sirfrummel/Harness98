@@ -151,6 +151,9 @@ text encodings, and the agent prompt documents Windows 98 `COMMAND.COM`
 limitations. Scratch files are directed to a dedicated `HARNESS98` folder
 beneath the Windows temporary directory.
 
+Version 3.6.1 removes the redundant assistant `:` marker now that transcript
+color and borders distinguish assistant responses.
+
 ## Release process
 
 The application version has one source of truth in `src/VersionInfo.cs`.

@@ -587,7 +587,7 @@ namespace Harness98.Gui
             rtf.Append("\\brdrl\\brdrs\\brdrw10\\brdrcf2");
             rtf.Append("\\brdrb\\brdrs\\brdrw10\\brdrcf2");
             rtf.Append("\\brdrr\\brdrs\\brdrw10\\brdrcf2");
-            rtf.Append("\\cf2\\b :\\b0\\cf0  ");
+            rtf.Append("\\cf0 ");
             rtf.Append(RtfEncode(text));
             rtf.Append("\\par ");
         }
