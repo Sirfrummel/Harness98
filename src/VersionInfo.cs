@@ -2,7 +2,7 @@ namespace Harness98
 {
     public static class VersionInfo
     {
-        public const string Current = "3.9.0";
+        public const string Current = "3.9.1";
         public const string ProductName = "Harness98";
     }
 }

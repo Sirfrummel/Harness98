@@ -73,6 +73,7 @@ namespace Harness98
         public long CompletionTokens;
         public long TotalTokens;
         public double Cost;
+        public bool Auxiliary;
     }
 
     public interface IAgentProgressSink

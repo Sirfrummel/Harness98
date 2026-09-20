@@ -42,7 +42,7 @@ Working features include:
 - Multi-turn conversations saved locally as JSON
 - Resume, new-conversation, and model-switching controls
 - Optional automatic conversation titles
-- Session token and cost tracking, with a configurable cost warning
+- Session cost and last-request token/cost tracking, with a configurable warning
 - Live tool-call progress in the GUI
 - Queued user messages while an agent run is active
 - A Stop control that gracefully interrupts an entire agent run

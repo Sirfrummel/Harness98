@@ -47,10 +47,11 @@ namespace Harness98.Gui
         private bool closeWhenIdle;
         private Conversation activeConversation;
         private ModelInfo activeModel;
-        private long sessionPromptTokens;
-        private long sessionCompletionTokens;
-        private long sessionTotalTokens;
         private double sessionCost;
+        private long lastPromptTokens;
+        private long lastCompletionTokens;
+        private double lastRequestCost;
+        private bool hasLastRequestUsage;
         private bool costWarningAcknowledged;
 
         public MainForm()
@@ -471,10 +472,14 @@ namespace Harness98.Gui
             AgentProgress progress = (AgentProgress)e.UserState;
             if (progress.Type == AgentProgressType.UsageReceived)
             {
-                sessionPromptTokens += progress.PromptTokens;
-                sessionCompletionTokens += progress.CompletionTokens;
-                sessionTotalTokens += progress.TotalTokens;
                 sessionCost += progress.Cost;
+                if (!progress.Auxiliary)
+                {
+                    lastPromptTokens = progress.PromptTokens;
+                    lastCompletionTokens = progress.CompletionTokens;
+                    lastRequestCost = progress.Cost;
+                    hasLastRequestUsage = true;
+                }
                 UpdateCostToolbar();
                 return;
             }
@@ -543,13 +548,14 @@ namespace Harness98.Gui
             }
             ChatWork work = (ChatWork)e.Result;
             activeConversation = work.Conversation;
-            sessionPromptTokens += Math.Max(0, work.Result.PromptTokens -
-                work.ReportedPromptTokens);
-            sessionCompletionTokens += Math.Max(0, work.Result.CompletionTokens -
-                work.ReportedCompletionTokens);
-            sessionTotalTokens += Math.Max(0, work.Result.TotalTokens -
-                work.ReportedTotalTokens);
             sessionCost += Math.Max(0, work.Result.Cost - work.ReportedCost);
+            if (work.HasLastRequestUsage)
+            {
+                lastPromptTokens = work.LastPromptTokens;
+                lastCompletionTokens = work.LastCompletionTokens;
+                lastRequestCost = work.LastRequestCost;
+                hasLastRequestUsage = true;
+            }
             UpdateCostToolbar();
             RenderConversation();
             RefreshConversationList();
@@ -852,11 +858,14 @@ namespace Harness98.Gui
 
         private void UpdateCostToolbar()
         {
+            string last = hasLastRequestUsage ?
+                lastPromptTokens.ToString() + " in / " +
+                lastCompletionTokens.ToString() + " out / $" +
+                lastRequestCost.ToString("0.000000",
+                    CultureInfo.InvariantCulture) : "--";
             costLabel.Text = "Session cost: $" +
                 sessionCost.ToString("0.000000", CultureInfo.InvariantCulture) +
-                "   Input: " + sessionPromptTokens.ToString() +
-                "   Output: " + sessionCompletionTokens.ToString() +
-                "   Total: " + sessionTotalTokens.ToString() + " tokens";
+                "  |  Last: " + last;
         }
 
         private void ShowSettings(object sender, EventArgs e)
@@ -1044,10 +1053,11 @@ namespace Harness98.Gui
             public ModelInfo Model;
             public string Text;
             public ChatResult Result;
-            public long ReportedPromptTokens;
-            public long ReportedCompletionTokens;
-            public long ReportedTotalTokens;
             public double ReportedCost;
+            public long LastPromptTokens;
+            public long LastCompletionTokens;
+            public double LastRequestCost;
+            public bool HasLastRequestUsage;
             public double SessionCostBeforeRun;
             public double CostWarningAmount;
             public bool CostWarningEnabled;
@@ -1075,10 +1085,14 @@ namespace Harness98.Gui
             {
                 if (progress.Type == AgentProgressType.UsageReceived)
                 {
-                    work.ReportedPromptTokens += progress.PromptTokens;
-                    work.ReportedCompletionTokens += progress.CompletionTokens;
-                    work.ReportedTotalTokens += progress.TotalTokens;
                     work.ReportedCost += progress.Cost;
+                    if (!progress.Auxiliary)
+                    {
+                        work.LastPromptTokens = progress.PromptTokens;
+                        work.LastCompletionTokens = progress.CompletionTokens;
+                        work.LastRequestCost = progress.Cost;
+                        work.HasLastRequestUsage = true;
+                    }
                 }
                 worker.ReportProgress(0, progress);
                 if (progress.Type == AgentProgressType.UsageReceived &&

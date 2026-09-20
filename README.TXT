@@ -36,7 +36,8 @@ GUI NOTES
   cancels a running command, skips pending tools and queued messages, and asks
   the model for a final response without more tools.
 - The hard command timeout is 30 seconds.
-- View > Cost Toolbar shows session cost and token totals.
+- View > Cost Toolbar shows session cost plus the last request's input tokens,
+  output tokens, and cost.
 - Tools > Settings controls the key, update path, titles, and cost warning.
 
 AGENT TOOLS

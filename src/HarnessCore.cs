@@ -176,6 +176,7 @@ namespace Harness98
             update.CompletionTokens = usage.CompletionTokens;
             update.TotalTokens = usage.TotalTokens;
             update.Cost = usage.Cost;
+            update.Auxiliary = true;
             progress.Report(update);
         }
 
