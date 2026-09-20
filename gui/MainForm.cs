@@ -15,10 +15,6 @@ namespace Harness98.Gui
     {
         private const int WmVScroll = 0x0115;
         private const int SbBottom = 7;
-        private static readonly Color UserColor = Color.FromArgb(30, 60, 125);
-        private static readonly Color ToolRequestColor = Color.FromArgb(105, 55, 125);
-        private static readonly Color ToolResultColor = Color.FromArgb(25, 100, 105);
-        private static readonly Color ErrorColor = Color.FromArgb(160, 35, 35);
 
         [DllImport("user32.dll")]
         private static extern IntPtr SendMessage(IntPtr window, int message,
@@ -43,6 +39,7 @@ namespace Harness98.Gui
         private readonly BackgroundWorker chatWorker;
         private readonly BackgroundWorker updateWorker;
         private bool changingConversation;
+        private ArrayList liveTranscriptMessages;
         private Conversation activeConversation;
         private ModelInfo activeModel;
         private long sessionPromptTokens;
@@ -431,7 +428,7 @@ namespace Harness98.Gui
             work.CostWarningEnabled = core.Configuration.CostWarningEnabled &&
                 !costWarningAcknowledged;
             work.CostWarningAmount = core.Configuration.CostWarningAmount;
-            AppendPendingUser(text);
+            BeginLiveTranscript(text);
             prompt.Clear();
             SetInteractive(false);
             status.Text = "Waiting for " + activeModel.Name + "...";
@@ -467,25 +464,30 @@ namespace Harness98.Gui
             }
             if (progress.Type == AgentProgressType.ToolStarted)
             {
-                string command = DescribeToolCall(progress.ToolCall);
                 status.Text = String.Compare(progress.ToolCall.Name,
                     "run_command", true) == 0 ? "Running command..." :
                     "Running " + progress.ToolCall.Name + "...";
-                AppendLiveCommand(command);
+                ChatMessage request = new ChatMessage("assistant", "");
+                request.AddToolCall(progress.ToolCall);
+                liveTranscriptMessages.Add(request);
+                RenderTranscript(liveTranscriptMessages);
                 return;
             }
             if (progress.Type == AgentProgressType.ToolCompleted)
             {
                 ChatMessage message = new ChatMessage("tool", progress.ToolResult);
                 message.ToolName = progress.ToolCall.Name;
+                message.ToolCallId = progress.ToolCall.Id;
                 status.Text = "Returning tool result to the model...";
-                AppendLiveToolResult(message);
+                liveTranscriptMessages.Add(message);
+                RenderTranscript(liveTranscriptMessages);
             }
         }
 
         private void ChatCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
             SetInteractive(true);
+            liveTranscriptMessages = null;
             if (e.Error != null)
             {
                 status.Text = "Request failed";
@@ -515,6 +517,26 @@ namespace Harness98.Gui
         {
             transcript.Clear();
             if (activeConversation == null) return;
+            RenderTranscript(activeConversation.Messages);
+            modelName.Text = activeModel == null ? "" :
+                activeModel.Name + "  (" + activeModel.Id + ")";
+            string title = activeConversation.Title.Length == 0 ?
+                "(new conversation)" : activeConversation.Title;
+            Text = "Harness98 " + VersionInfo.Current + " - " + title;
+        }
+
+        private void BeginLiveTranscript(string pendingUserText)
+        {
+            liveTranscriptMessages = new ArrayList();
+            for (int i = 0; i < activeConversation.Messages.Count; i++)
+                liveTranscriptMessages.Add(activeConversation.Messages[i]);
+            liveTranscriptMessages.Add(new ChatMessage("user", pendingUserText));
+            RenderTranscript(liveTranscriptMessages);
+        }
+
+        private void RenderTranscript(IList messages)
+        {
+            transcript.Clear();
             StringBuilder rtf = new StringBuilder();
             rtf.Append("{\\rtf1\\ansi\\deff0");
             rtf.Append("{\\fonttbl{\\f0\\fnil MS Sans Serif;}");
@@ -526,20 +548,14 @@ namespace Harness98.Gui
             rtf.Append("\\red160\\green35\\blue35;");
             rtf.Append("\\red238\\green238\\blue238;}");
             rtf.Append("\\viewkind4\\uc1\\f0\\fs18 ");
-            for (int i = 0; i < activeConversation.Messages.Count; i++)
+            for (int i = 0; i < messages.Count; i++)
             {
-                ChatMessage message =
-                    (ChatMessage)activeConversation.Messages[i];
+                ChatMessage message = (ChatMessage)messages[i];
                 AppendRtfMessage(rtf, message);
             }
             rtf.Append('}');
             transcript.Rtf = rtf.ToString();
             ScrollTranscriptToEnd();
-            modelName.Text = activeModel == null ? "" :
-                activeModel.Name + "  (" + activeModel.Id + ")";
-            string title = activeConversation.Title.Length == 0 ?
-                "(new conversation)" : activeConversation.Title;
-            Text = "Harness98 " + VersionInfo.Current + " - " + title;
         }
 
         private static void AppendRtfMessage(StringBuilder rtf,
@@ -548,7 +564,7 @@ namespace Harness98.Gui
             if (message.Role == "user")
             {
                 rtf.Append("\\pard\\li0\\ri180\\sb60\\sa160\\cf1\\b >\\b0  ");
-                rtf.Append(RtfEncode(message.Content));
+                rtf.Append(RichTextFormatter.Encode(message.Content));
                 rtf.Append("\\cf0\\par ");
                 return;
             }
@@ -557,7 +573,7 @@ namespace Harness98.Gui
             {
                 rtf.Append("\\pard\\li360\\ri110\\sb0\\sa140\\cf");
                 rtf.Append(ToolResultFailed(message) ? "5 " : "4 ");
-                rtf.Append(RtfEncode(CompactToolResult(message)));
+                rtf.Append(RichTextFormatter.Encode(CompactToolResult(message)));
                 rtf.Append("\\cf0\\par ");
                 return;
             }
@@ -573,7 +589,7 @@ namespace Harness98.Gui
                     ToolCall call = (ToolCall)message.ToolCalls[i];
                     rtf.Append("\\pard\\li110\\ri110\\sb80\\sa20\\cf3 *");
                     rtf.Append("\\b Ran\\b0  ");
-                    rtf.Append(RtfEncode(DescribeToolCall(call)));
+                    rtf.Append(RichTextFormatter.Encode(DescribeToolCall(call)));
                     rtf.Append("\\cf0\\par ");
                 }
                 return;
@@ -691,44 +707,6 @@ namespace Harness98.Gui
             }
         }
 
-        private void AppendLiveCommand(string command)
-        {
-            transcript.SelectionStart = transcript.TextLength;
-            transcript.SelectionColor = ToolRequestColor;
-            transcript.AppendText("\r\n\r\n*");
-            transcript.SelectionFont = new Font(transcript.Font, FontStyle.Bold);
-            transcript.AppendText("Ran");
-            transcript.SelectionFont = transcript.Font;
-            transcript.AppendText(" " + command);
-            transcript.SelectionColor = transcript.ForeColor;
-            ScrollTranscriptToEnd();
-        }
-
-        private void AppendLiveToolResult(ChatMessage message)
-        {
-            transcript.SelectionStart = transcript.TextLength;
-            transcript.SelectionIndent = 24;
-            transcript.SelectionColor = ToolResultFailed(message) ?
-                ErrorColor : ToolResultColor;
-            transcript.AppendText("\r\n" + CompactToolResult(message));
-            transcript.SelectionIndent = 0;
-            transcript.SelectionColor = transcript.ForeColor;
-            ScrollTranscriptToEnd();
-        }
-
-        private void AppendPendingUser(string text)
-        {
-            transcript.SelectionStart = transcript.TextLength;
-            transcript.SelectionColor = UserColor;
-            transcript.SelectionFont = new Font(transcript.Font, FontStyle.Bold);
-            transcript.AppendText("\r\n> ");
-            transcript.SelectionFont = transcript.Font;
-            transcript.SelectionColor = UserColor;
-            transcript.AppendText(text);
-            transcript.SelectionColor = transcript.ForeColor;
-            ScrollTranscriptToEnd();
-        }
-
         private void ScrollTranscriptToEnd()
         {
             transcript.SelectionStart = transcript.TextLength;
@@ -737,24 +715,6 @@ namespace Harness98.Gui
             if (transcript.IsHandleCreated)
                 SendMessage(transcript.Handle, WmVScroll,
                     new IntPtr(SbBottom), IntPtr.Zero);
-        }
-
-        private static string RtfEncode(string text)
-        {
-            StringBuilder encoded = new StringBuilder();
-            if (text == null) return "";
-            for (int i = 0; i < text.Length; i++)
-            {
-                char value = text[i];
-                if (value == '\r') continue;
-                if (value == '\n') encoded.Append("\\line ");
-                else if (value == '\\' || value == '{' || value == '}')
-                    encoded.Append('\\').Append(value);
-                else if (value > 127)
-                    encoded.Append("\\u").Append(((short)value).ToString()).Append('?');
-                else encoded.Append(value);
-            }
-            return encoded.ToString();
         }
 
         private void ToggleConversations(object sender, EventArgs e)
