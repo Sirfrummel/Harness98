@@ -6,28 +6,39 @@ namespace Harness98
 {
     public sealed class AgentRunner
     {
-        private const int MaximumIterations = 10;
+        private const int DefaultMaximumIterations = 10;
         private readonly OpenRouterClient client;
         private readonly string apiKey;
         private readonly string applicationDirectory;
         private readonly ToolRegistry tools;
         private readonly IAgentProgressSink progress;
+        private readonly int maximumIterations;
 
         public AgentRunner(OpenRouterClient openRouter, string key,
             string workingDirectory, IAgentProgressSink progressSink)
+            : this(openRouter, key, workingDirectory, progressSink,
+                DefaultMaximumIterations)
+        {
+        }
+
+        public AgentRunner(OpenRouterClient openRouter, string key,
+            string workingDirectory, IAgentProgressSink progressSink,
+            int toolCallLimit)
         {
             client = openRouter;
             apiKey = key;
             applicationDirectory = workingDirectory;
             tools = new ToolRegistry(workingDirectory);
             progress = progressSink;
+            maximumIterations = toolCallLimit > 0 ? toolCallLimit :
+                DefaultMaximumIterations;
         }
 
         public ChatResult Run(ModelInfo model, Conversation conversation)
         {
             ChatResult total = new ChatResult();
             bool toolsEnabled = model.SupportsTools;
-            for (int iteration = 0; iteration < MaximumIterations; iteration++)
+            for (int iteration = 0; iteration < maximumIterations; iteration++)
             {
                 Report(AgentProgressType.ModelRequestStarted, iteration + 1,
                     null, null);
@@ -41,6 +52,13 @@ namespace Harness98
                 if (completion.ToolCalls.Count == 0)
                 {
                     total.Answer = completion.Answer;
+                    return total;
+                }
+
+                if (!ShouldContinue())
+                {
+                    total.Answer = "Stopped before running the next command " +
+                        "because the session cost warning was declined.";
                     return total;
                 }
 
@@ -67,22 +85,28 @@ namespace Harness98
 
             ArrayList finalMessages = BuildMessages(conversation, toolsEnabled);
             finalMessages.Add(new ChatMessage("system",
-                "The maximum of " + MaximumIterations.ToString() +
+                "The maximum of " + maximumIterations.ToString() +
                 " tool-call rounds has been reached. Do not request any more " +
                 "tools. Respond to the user now using the information already " +
                 "collected, and briefly mention any work that remains."));
             Report(AgentProgressType.ModelRequestStarted,
-                MaximumIterations + 1, null, null);
+                maximumIterations + 1, null, null);
             ChatCompletion finalCompletion = client.SendChatWithUsage(apiKey,
                 model.Id, finalMessages, toolsEnabled ? tools.DefinitionsJson : null,
                 toolsEnabled);
             ApplyCostFallback(finalCompletion, model);
             AddUsage(total, finalCompletion);
-            ReportUsage(finalCompletion, MaximumIterations + 1);
+            ReportUsage(finalCompletion, maximumIterations + 1);
             total.Answer = finalCompletion.Answer.Length == 0 ?
                 "The tool-call limit was reached before the model produced a " +
                 "final response." : finalCompletion.Answer;
             return total;
+        }
+
+        private bool ShouldContinue()
+        {
+            IAgentRunControl control = progress as IAgentRunControl;
+            return control == null || control.ContinueRun;
         }
 
         private void Report(AgentProgressType type, int iteration,

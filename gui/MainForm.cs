@@ -49,6 +49,7 @@ namespace Harness98.Gui
         private long sessionCompletionTokens;
         private long sessionTotalTokens;
         private double sessionCost;
+        private bool costWarningAcknowledged;
 
         public MainForm()
         {
@@ -280,8 +281,7 @@ namespace Harness98.Gui
                 return;
             }
             SetInteractive(true);
-            status.Text = "Ready - " + core.Models.Count.ToString() +
-                " models loaded";
+            status.Text = "Ready";
             prompt.Focus();
         }
 
@@ -419,10 +419,18 @@ namespace Harness98.Gui
             string text = prompt.Text.Trim();
             if (text.Length == 0 || chatWorker.IsBusy || activeConversation == null)
                 return;
+            if (core.Configuration.CostWarningEnabled &&
+                !costWarningAcknowledged &&
+                sessionCost >= core.Configuration.CostWarningAmount &&
+                !ShowCostWarning(sessionCost)) return;
             ChatWork work = new ChatWork();
             work.Conversation = activeConversation;
             work.Model = activeModel;
             work.Text = text;
+            work.SessionCostBeforeRun = sessionCost;
+            work.CostWarningEnabled = core.Configuration.CostWarningEnabled &&
+                !costWarningAcknowledged;
+            work.CostWarningAmount = core.Configuration.CostWarningAmount;
             AppendPendingUser(text);
             prompt.Clear();
             SetInteractive(false);
@@ -435,7 +443,7 @@ namespace Harness98.Gui
             ChatWork work = (ChatWork)e.Argument;
             BackgroundWorker worker = (BackgroundWorker)sender;
             work.Result = core.SendMessage(work.Conversation, work.Model, work.Text,
-                new BackgroundAgentProgressSink(worker, work));
+                new BackgroundAgentProgressSink(this, worker, work));
             e.Result = work;
         }
 
@@ -461,7 +469,7 @@ namespace Harness98.Gui
             {
                 string command = ReadToolCommand(progress.ToolCall.Arguments);
                 status.Text = "Running command...";
-                AppendLiveProgress("Command:", command, ToolRequestColor);
+                AppendLiveCommand(command);
                 return;
             }
             if (progress.Type == AgentProgressType.ToolCompleted)
@@ -469,9 +477,7 @@ namespace Harness98.Gui
                 ChatMessage message = new ChatMessage("tool", progress.ToolResult);
                 message.ToolName = progress.ToolCall.Name;
                 status.Text = "Returning command output to the model...";
-                AppendLiveProgress("Command finished:",
-                    DisplayToolResult(message), ToolResultFailed(message) ?
-                    ErrorColor : ToolResultColor);
+                AppendLiveToolResult(message);
             }
         }
 
@@ -520,31 +526,7 @@ namespace Harness98.Gui
             {
                 ChatMessage message =
                     (ChatMessage)activeConversation.Messages[i];
-                if (message.Role == "user")
-                {
-                    rtf.Append("\\pard\\li0\\ri180\\sb60\\sa160\\cf1\\b >\\b0  ");
-                }
-                else if (message.Role == "assistant")
-                {
-                    rtf.Append("\\pard\\li0\\ri0\\sb80\\sa180");
-                    rtf.Append("\\brdrt\\brdrs\\brdrw10\\brdrcf2");
-                    rtf.Append("\\brdrl\\brdrs\\brdrw10\\brdrcf2");
-                    rtf.Append("\\brdrb\\brdrs\\brdrw10\\brdrcf2");
-                    rtf.Append("\\brdrr\\brdrs\\brdrw10\\brdrcf2");
-                    if (message.ToolCalls.Count > 0)
-                        rtf.Append("\\cf3\\b Command request:\\b0  ");
-                    else
-                        rtf.Append("\\cf2\\b :\\b0\\cf0  ");
-                }
-                else
-                {
-                    int color = ToolResultFailed(message) ? 5 : 4;
-                    rtf.Append("\\pard\\li110\\ri110\\sb60\\sa160\\cf");
-                    rtf.Append(color.ToString());
-                    rtf.Append("\\b Command result:\\b0\\line ");
-                }
-                rtf.Append(RtfEncode(DisplayMessage(message)));
-                rtf.Append("\\cf0\\par ");
+                AppendRtfMessage(rtf, message);
             }
             rtf.Append('}');
             transcript.Rtf = rtf.ToString();
@@ -556,32 +538,56 @@ namespace Harness98.Gui
             Text = "Harness98 " + VersionInfo.Current + " - " + title;
         }
 
-        private static string DisplayMessage(ChatMessage message)
+        private static void AppendRtfMessage(StringBuilder rtf,
+            ChatMessage message)
         {
-            if (message.Role == "tool") return DisplayToolResult(message);
-            if (message.ToolCalls.Count == 0) return message.Content;
-
-            StringBuilder text = new StringBuilder();
-            if (message.Content != null && message.Content.Length > 0)
-                text.Append(message.Content).Append("\r\n");
-            for (int i = 0; i < message.ToolCalls.Count; i++)
+            if (message.Role == "user")
             {
-                ToolCall call = (ToolCall)message.ToolCalls[i];
-                if (i > 0) text.Append("\r\n");
-                text.Append("Tool request: ").Append(call.Name);
-                try
-                {
-                    Hashtable arguments = Json.AsObject(Json.Parse(call.Arguments));
-                    string command = Json.GetString(arguments, "command");
-                    if (command != null) text.Append("\r\n> ").Append(command);
-                    else text.Append("\r\n").Append(call.Arguments);
-                }
-                catch
-                {
-                    text.Append("\r\n").Append(call.Arguments);
-                }
+                rtf.Append("\\pard\\li0\\ri180\\sb60\\sa160\\cf1\\b >\\b0  ");
+                rtf.Append(RtfEncode(message.Content));
+                rtf.Append("\\cf0\\par ");
+                return;
             }
-            return text.ToString();
+
+            if (message.Role == "tool")
+            {
+                rtf.Append("\\pard\\li360\\ri110\\sb0\\sa140\\cf");
+                rtf.Append(ToolResultFailed(message) ? "5 " : "4 ");
+                rtf.Append(RtfEncode(CompactToolResult(message)));
+                rtf.Append("\\cf0\\par ");
+                return;
+            }
+
+            if (message.ToolCalls.Count > 0)
+            {
+                if (message.Content != null && message.Content.Length > 0)
+                {
+                    AppendRtfAssistant(rtf, message.Content);
+                }
+                for (int i = 0; i < message.ToolCalls.Count; i++)
+                {
+                    ToolCall call = (ToolCall)message.ToolCalls[i];
+                    rtf.Append("\\pard\\li110\\ri110\\sb80\\sa20\\cf3 *");
+                    rtf.Append("\\b Ran\\b0  ");
+                    rtf.Append(RtfEncode(ReadToolCommand(call.Arguments)));
+                    rtf.Append("\\cf0\\par ");
+                }
+                return;
+            }
+
+            AppendRtfAssistant(rtf, message.Content);
+        }
+
+        private static void AppendRtfAssistant(StringBuilder rtf, string text)
+        {
+            rtf.Append("\\pard\\li0\\ri0\\sb80\\sa180");
+            rtf.Append("\\brdrt\\brdrs\\brdrw10\\brdrcf2");
+            rtf.Append("\\brdrl\\brdrs\\brdrw10\\brdrcf2");
+            rtf.Append("\\brdrb\\brdrs\\brdrw10\\brdrcf2");
+            rtf.Append("\\brdrr\\brdrs\\brdrw10\\brdrcf2");
+            rtf.Append("\\cf2\\b :\\b0\\cf0  ");
+            rtf.Append(RtfEncode(text));
+            rtf.Append("\\par ");
         }
 
         private static string ReadToolCommand(string argumentsText)
@@ -598,35 +604,54 @@ namespace Harness98.Gui
             }
         }
 
-        private static string DisplayToolResult(ChatMessage message)
+        private static string CompactToolResult(ChatMessage message)
         {
             try
             {
                 Hashtable result = Json.AsObject(Json.Parse(message.Content));
                 if (result == null) return message.Content;
                 string error = Json.GetString(result, "error");
-                if (error != null) return "Tool error: " + error;
+                if (error != null) return CompactLines("Error: " + error);
                 StringBuilder text = new StringBuilder();
-                text.Append("Tool result: ").Append(message.ToolName);
                 string output = Json.GetString(result, "stdout");
                 string errors = Json.GetString(result, "stderr");
                 if (output != null && output.Length > 0)
-                    text.Append("\r\n").Append(output.TrimEnd());
+                    text.Append(output.TrimEnd());
                 if (errors != null && errors.Length > 0)
-                    text.Append("\r\nError output:\r\n").Append(errors.TrimEnd());
-                text.Append("\r\nExit code: ").Append(
-                    Json.GetInt64(result, "exit_code").ToString());
+                {
+                    if (text.Length > 0) text.Append("\r\n");
+                    text.Append("[stderr] ").Append(errors.TrimEnd());
+                }
+                long exitCode = Json.GetInt64(result, "exit_code");
+                if (exitCode != 0)
+                {
+                    if (text.Length > 0) text.Append("\r\n");
+                    text.Append("Exit code: ").Append(exitCode.ToString());
+                }
                 if (result["timed_out"] is bool && (bool)result["timed_out"])
-                    text.Append(" (timed out)");
+                    text.Append(text.Length > 0 ? "\r\n[Timed out]" : "[Timed out]");
                 if (result["output_truncated"] is bool &&
                     (bool)result["output_truncated"])
-                    text.Append("\r\n[Output was truncated]");
-                return LimitDisplayText(text.ToString(), 2048);
+                    text.Append(text.Length > 0 ? "\r\n[Output was truncated]" :
+                        "[Output was truncated]");
+                if (text.Length == 0) text.Append("(no output)");
+                return CompactLines(text.ToString());
             }
             catch
             {
-                return message.Content;
+                return CompactLines(message.Content);
             }
+        }
+
+        private static string CompactLines(string text)
+        {
+            if (text == null || text.Length == 0) return "(no output)";
+            string normalized = text.Replace("\r\n", "\n").Replace('\r', '\n');
+            string[] lines = normalized.Split(new char[] { '\n' });
+            if (lines.Length <= 4) return String.Join("\r\n", lines);
+            return lines[0] + "\r\n" + lines[1] + "\r\n... + " +
+                (lines.Length - 4).ToString() + " lines\r\n" +
+                lines[lines.Length - 2] + "\r\n" + lines[lines.Length - 1];
         }
 
         private static bool ToolResultFailed(ChatMessage message)
@@ -644,22 +669,27 @@ namespace Harness98.Gui
             }
         }
 
-        private static string LimitDisplayText(string text, int maximum)
-        {
-            if (text == null || text.Length <= maximum) return text;
-            return text.Substring(0, maximum) +
-                "\r\n[Display preview truncated; the model received more output]";
-        }
-
-        private void AppendLiveProgress(string heading, string body, Color color)
+        private void AppendLiveCommand(string command)
         {
             transcript.SelectionStart = transcript.TextLength;
-            transcript.SelectionColor = color;
+            transcript.SelectionColor = ToolRequestColor;
+            transcript.AppendText("\r\n\r\n*");
             transcript.SelectionFont = new Font(transcript.Font, FontStyle.Bold);
-            transcript.AppendText("\r\n\r\n" + heading + "\r\n");
+            transcript.AppendText("Ran");
             transcript.SelectionFont = transcript.Font;
-            transcript.SelectionColor = color;
-            transcript.AppendText(LimitDisplayText(body, 2048));
+            transcript.AppendText(" " + command);
+            transcript.SelectionColor = transcript.ForeColor;
+            ScrollTranscriptToEnd();
+        }
+
+        private void AppendLiveToolResult(ChatMessage message)
+        {
+            transcript.SelectionStart = transcript.TextLength;
+            transcript.SelectionIndent = 24;
+            transcript.SelectionColor = ToolResultFailed(message) ?
+                ErrorColor : ToolResultColor;
+            transcript.AppendText("\r\n" + CompactToolResult(message));
+            transcript.SelectionIndent = 0;
             transcript.SelectionColor = transcript.ForeColor;
             ScrollTranscriptToEnd();
         }
@@ -690,6 +720,7 @@ namespace Harness98.Gui
         private static string RtfEncode(string text)
         {
             StringBuilder encoded = new StringBuilder();
+            if (text == null) return "";
             for (int i = 0; i < text.Length; i++)
             {
                 char value = text[i];
@@ -738,8 +769,29 @@ namespace Harness98.Gui
         {
             if (core.Models == null || IsBusy()) return;
             SettingsDialog dialog = new SettingsDialog(core);
-            dialog.ShowDialog(this);
+            if (dialog.ShowDialog(this) == DialogResult.OK)
+                costWarningAcknowledged = false;
             dialog.Dispose();
+        }
+
+        private bool ShowCostWarning(double currentCost)
+        {
+            CostLimitDialog dialog = new CostLimitDialog(
+                core.Configuration.CostWarningAmount, currentCost);
+            bool continueRun = dialog.ShowDialog(this) == DialogResult.Yes;
+            dialog.Dispose();
+            if (continueRun) costWarningAcknowledged = true;
+            return continueRun;
+        }
+
+        private delegate bool CostWarningCallback(double currentCost);
+
+        private bool ShowCostWarningFromWorker(double currentCost)
+        {
+            if (InvokeRequired)
+                return (bool)Invoke(new CostWarningCallback(
+                    ShowCostWarningFromWorker), new object[] { currentCost });
+            return ShowCostWarning(currentCost);
         }
 
         private void CheckUpdates(object sender, EventArgs e)
@@ -868,16 +920,24 @@ namespace Harness98.Gui
             public long ReportedCompletionTokens;
             public long ReportedTotalTokens;
             public double ReportedCost;
+            public double SessionCostBeforeRun;
+            public double CostWarningAmount;
+            public bool CostWarningEnabled;
+            public bool CostWarningHandled;
+            public bool StopRequested;
         }
 
-        private sealed class BackgroundAgentProgressSink : IAgentProgressSink
+        private sealed class BackgroundAgentProgressSink : IAgentProgressSink,
+            IAgentRunControl
         {
+            private readonly MainForm owner;
             private readonly BackgroundWorker worker;
             private readonly ChatWork work;
 
-            public BackgroundAgentProgressSink(BackgroundWorker backgroundWorker,
-                ChatWork chatWork)
+            public BackgroundAgentProgressSink(MainForm mainForm,
+                BackgroundWorker backgroundWorker, ChatWork chatWork)
             {
+                owner = mainForm;
                 worker = backgroundWorker;
                 work = chatWork;
             }
@@ -892,6 +952,21 @@ namespace Harness98.Gui
                     work.ReportedCost += progress.Cost;
                 }
                 worker.ReportProgress(0, progress);
+                if (progress.Type == AgentProgressType.UsageReceived &&
+                    work.CostWarningEnabled && !work.CostWarningHandled &&
+                    work.SessionCostBeforeRun + work.ReportedCost >=
+                    work.CostWarningAmount)
+                {
+                    work.CostWarningHandled = true;
+                    if (!owner.ShowCostWarningFromWorker(
+                        work.SessionCostBeforeRun + work.ReportedCost))
+                        work.StopRequested = true;
+                }
+            }
+
+            public bool ContinueRun
+            {
+                get { return !work.StopRequested; }
             }
         }
 

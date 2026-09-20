@@ -16,6 +16,9 @@ public sealed class Tests
         Run("Command execution and output capture", TestCommandExecution);
         Run("Live agent progress", TestAgentProgress);
         Run("Tool limit final response", TestToolLimitFinalResponse);
+        Run("Configurable tool limit", TestConfigurableToolLimit);
+        Run("Cost warning stops tools", TestCostWarningStopsTools);
+        Run("Limit settings persistence", TestLimitSettingsPersistence);
         Run("Usage cost fallback", TestUsageCostFallback);
         Run("Content-part response", TestContentParts);
         Run("API error message", TestApiError);
@@ -259,6 +262,87 @@ public sealed class Tests
             System.Globalization.CultureInfo.InvariantCulture));
     }
 
+    private static void TestLimitSettingsPersistence()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "h98-config-" +
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            AppConfiguration saved = new AppConfiguration(root);
+            saved.ToolCallLimit = 7;
+            saved.CostWarningEnabled = true;
+            saved.CostWarningAmount = 0.125;
+            saved.Save();
+
+            AppConfiguration loaded = new AppConfiguration(root);
+            loaded.Load();
+            AssertEqual("7", loaded.EffectiveToolCallLimit.ToString());
+            AssertEqual("True", loaded.CostWarningEnabled.ToString());
+            AssertEqual("0.125", loaded.CostWarningAmount.ToString(
+                System.Globalization.CultureInfo.InvariantCulture));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    private static void TestConfigurableToolLimit()
+    {
+        FakeTransport transport = new FakeTransport();
+        for (int i = 0; i < 2; i++)
+        {
+            transport.PostResponses.Add(Ok("{\"choices\":[{\"message\":{" +
+                "\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{" +
+                "\"id\":\"custom-" + i.ToString() + "\",\"type\":\"function\"," +
+                "\"function\":{\"name\":\"unknown_test_tool\"," +
+                "\"arguments\":\"{}\"}}]}}]}"));
+        }
+        transport.PostResponses.Add(Ok("{\"choices\":[{\"message\":{" +
+            "\"role\":\"assistant\",\"content\":\"Stopped at two.\"}}]}"));
+        ModelInfo model = new ModelInfo();
+        model.Id = "test/custom-limit";
+        model.Name = "Custom limit";
+        model.SupportsTools = true;
+        Conversation conversation = new Conversation();
+        conversation.Add("user", "Use tools");
+        AgentRunner runner = new AgentRunner(new OpenRouterClient(transport),
+            "key", Path.GetTempPath(), null, 2);
+        ChatResult result = runner.Run(model, conversation);
+
+        AssertEqual("Stopped at two.", result.Answer);
+        AssertEqual("5", conversation.Count.ToString());
+        Hashtable finalRequest = Json.AsObject(Json.Parse(transport.LastPostBody));
+        AssertEqual("none", Json.GetString(finalRequest, "tool_choice"));
+    }
+
+    private static void TestCostWarningStopsTools()
+    {
+        FakeTransport transport = new FakeTransport();
+        transport.PostResponses.Add(Ok("{\"choices\":[{\"message\":{" +
+            "\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{" +
+            "\"id\":\"cost-stop\",\"type\":\"function\",\"function\":{" +
+            "\"name\":\"run_command\",\"arguments\":" +
+            "\"{\\\"command\\\":\\\"echo SHOULD_NOT_RUN\\\"}\"}}]}}]," +
+            "\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1," +
+            "\"total_tokens\":2,\"cost\":0.5}}"));
+        ModelInfo model = new ModelInfo();
+        model.Id = "test/cost-stop";
+        model.Name = "Cost stop";
+        model.SupportsTools = true;
+        Conversation conversation = new Conversation();
+        conversation.Add("user", "Try a tool");
+        StopAfterUsageSink progress = new StopAfterUsageSink();
+        AgentRunner runner = new AgentRunner(new OpenRouterClient(transport),
+            "key", Path.GetTempPath(), progress, 10);
+        ChatResult result = runner.Run(model, conversation);
+
+        if (result.Answer.IndexOf("Stopped before running") < 0)
+            throw new Exception("The stopped run did not return a clear response.");
+        AssertEqual("1", conversation.Count.ToString());
+    }
+
     private static void TestContentParts()
     {
         FakeTransport transport = new FakeTransport();
@@ -495,6 +579,22 @@ public sealed class Tests
         public void Report(AgentProgress progress)
         {
             Events.Add(progress);
+        }
+    }
+
+    private sealed class StopAfterUsageSink : IAgentProgressSink, IAgentRunControl
+    {
+        private bool continueRun = true;
+
+        public void Report(AgentProgress progress)
+        {
+            if (progress.Type == AgentProgressType.UsageReceived)
+                continueRun = false;
+        }
+
+        public bool ContinueRun
+        {
+            get { return continueRun; }
         }
     }
 }

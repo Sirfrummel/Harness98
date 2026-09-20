@@ -79,6 +79,11 @@ namespace Harness98
         void Report(AgentProgress progress);
     }
 
+    public interface IAgentRunControl
+    {
+        bool ContinueRun { get; }
+    }
+
     public sealed class Conversation
     {
         private readonly ArrayList messages = new ArrayList();

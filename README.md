@@ -141,6 +141,10 @@ alphabetically.
 Version 3.4.2 adds role-aware transcript colors for user messages, assistant
 responses, command requests, successful command output, and command failures.
 
+Version 3.5.0 condenses command activity to two leading and two trailing output
+lines, adds configurable tool-round and session-cost warnings under a Limits
+settings tab, and simplifies the idle status bar to `Ready`.
+
 ## Release process
 
 The application version has one source of truth in `src/VersionInfo.cs`.

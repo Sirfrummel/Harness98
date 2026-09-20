@@ -86,7 +86,7 @@ namespace Harness98
             try
             {
                 AgentRunner runner = new AgentRunner(client, ApiKey, baseDirectory,
-                    progress);
+                    progress, Configuration.EffectiveToolCallLimit);
                 result = runner.Run(model, conversation);
             }
             catch
