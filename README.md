@@ -154,6 +154,10 @@ beneath the Windows temporary directory.
 Version 3.6.1 removes the redundant assistant `:` marker now that transcript
 color and borders distinguish assistant responses.
 
+Version 3.7.0 renders complete triple-backtick and triple-tilde code fences as
+indented Courier New blocks with a light background. Fence markers and optional
+language tags are hidden; incomplete fences remain visible as ordinary text.
+
 ## Release process
 
 The application version has one source of truth in `src/VersionInfo.cs`.

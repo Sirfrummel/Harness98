@@ -517,12 +517,14 @@ namespace Harness98.Gui
             if (activeConversation == null) return;
             StringBuilder rtf = new StringBuilder();
             rtf.Append("{\\rtf1\\ansi\\deff0");
-            rtf.Append("{\\fonttbl{\\f0\\fnil MS Sans Serif;}}");
+            rtf.Append("{\\fonttbl{\\f0\\fnil MS Sans Serif;}");
+            rtf.Append("{\\f1\\fmodern Courier New;}}");
             rtf.Append("{\\colortbl;\\red30\\green60\\blue125;");
             rtf.Append("\\red55\\green105\\blue60;");
             rtf.Append("\\red105\\green55\\blue125;");
             rtf.Append("\\red25\\green100\\blue105;");
-            rtf.Append("\\red160\\green35\\blue35;}");
+            rtf.Append("\\red160\\green35\\blue35;");
+            rtf.Append("\\red238\\green238\\blue238;}");
             rtf.Append("\\viewkind4\\uc1\\f0\\fs18 ");
             for (int i = 0; i < activeConversation.Messages.Count; i++)
             {
@@ -588,7 +590,7 @@ namespace Harness98.Gui
             rtf.Append("\\brdrb\\brdrs\\brdrw10\\brdrcf2");
             rtf.Append("\\brdrr\\brdrs\\brdrw10\\brdrcf2");
             rtf.Append("\\cf0 ");
-            rtf.Append(RtfEncode(text));
+            rtf.Append(RichTextFormatter.FormatAssistantText(text));
             rtf.Append("\\par ");
         }
 

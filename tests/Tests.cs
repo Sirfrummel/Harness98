@@ -15,6 +15,7 @@ public sealed class Tests
         Run("Tool calling protocol", TestToolProtocol);
         Run("Command execution and output capture", TestCommandExecution);
         Run("Bounded text file tools", TestFileTools);
+        Run("Rich text code fences", TestRichTextCodeFences);
         Run("Live agent progress", TestAgentProgress);
         Run("Tool limit final response", TestToolLimitFinalResponse);
         Run("Configurable tool limit", TestConfigurableToolLimit);
@@ -313,6 +314,30 @@ public sealed class Tests
         {
             Directory.Delete(root, true);
         }
+    }
+
+    private static void TestRichTextCodeFences()
+    {
+        string formatted = RichTextFormatter.FormatAssistantText(
+            "Before\n```bat\n@echo {test}\ndir\n```\nAfter");
+        if (formatted.IndexOf("```") >= 0 || formatted.IndexOf("bat") >= 0)
+            throw new Exception("A complete code fence was not hidden.");
+        if (formatted.IndexOf("\\f1\\highlight6") < 0)
+            throw new Exception("The fenced block did not switch code styling.");
+        if (formatted.IndexOf("\\tab @echo \\{test\\}") < 0)
+            throw new Exception("Code text was not indented and RTF-escaped.");
+        if (formatted.IndexOf("\\highlight0\\f0") < 0)
+            throw new Exception("Normal transcript styling was not restored.");
+
+        string tilde = RichTextFormatter.FormatAssistantText(
+            "~~~text\nplain\n~~~");
+        if (tilde.IndexOf("~~~") >= 0 || tilde.IndexOf("plain") < 0)
+            throw new Exception("Tilde fences were not rendered.");
+
+        string incomplete = RichTextFormatter.FormatAssistantText(
+            "```text\nstill open");
+        if (incomplete.IndexOf("```text") < 0)
+            throw new Exception("An incomplete fence was incorrectly hidden.");
     }
 
     private static void TestLimitSettingsPersistence()
