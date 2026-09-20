@@ -129,8 +129,8 @@ public sealed class Tests
 
         Hashtable request = Json.AsObject(Json.Parse(transport.LastPostBody));
         AssertEqual("1", Json.AsArray(request["tools"]).Count.ToString());
-        if ((bool)request["parallel_tool_calls"])
-            throw new Exception("Parallel tool calls should be disabled.");
+        if (!(bool)request["parallel_tool_calls"])
+            throw new Exception("Parallel tool calls should be enabled.");
 
         ChatMessage assistant = new ChatMessage("assistant", "");
         assistant.AddToolCall(call);

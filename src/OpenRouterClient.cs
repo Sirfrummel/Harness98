@@ -159,7 +159,7 @@ namespace Harness98
             {
                 json.Append("\"tools\":");
                 json.Append(toolsJson);
-                json.Append(",\"parallel_tool_calls\":false,");
+                json.Append(",\"parallel_tool_calls\":true,");
                 if (disableToolCalls)
                     json.Append("\"tool_choice\":\"none\",");
             }
