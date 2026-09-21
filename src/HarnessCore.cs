@@ -11,6 +11,7 @@ namespace Harness98
 
         public readonly Settings Credentials;
         public readonly AppConfiguration Configuration;
+        public readonly ExtraInstructionsStore ExtraInstructions;
         public readonly ConversationStore Conversations;
         public readonly UpdateManager Updates;
         public string ApiKey;
@@ -22,6 +23,7 @@ namespace Harness98
             Credentials = new Settings(baseDirectory);
             Configuration = new AppConfiguration(baseDirectory);
             Configuration.Load();
+            ExtraInstructions = new ExtraInstructionsStore(baseDirectory);
             Conversations = new ConversationStore(baseDirectory);
             Updates = new UpdateManager(baseDirectory);
         }
@@ -86,7 +88,7 @@ namespace Harness98
             try
             {
                 AgentRunner runner = new AgentRunner(client, ApiKey, baseDirectory,
-                    progress);
+                    progress, ExtraInstructions.Load());
                 result = runner.Run(model, conversation);
             }
             catch

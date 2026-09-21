@@ -30,6 +30,7 @@ credentials/
 config.local.*
 OPENROUT.KEY
 HARNESS98.KEY
+HARNESS98.INSTRUCTIONS.TXT
 
 # Editor and OS files
 *.suo

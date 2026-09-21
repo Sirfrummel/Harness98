@@ -80,9 +80,10 @@ cp vendor/libcurl-win98/LibCurlNet.dll \
     vendor/libcurl-win98/ssleay32.dll "$package/"
 cp "$certificate_bundle" "$package/CACERT.PEM"
 printf '%s\r\n' "$version" > "$package/VERSION.TXT"
-if find "$package" -type f \( -iname '*.key' -o -iname 'OPENROUT.KEY' \) \
+if find "$package" -type f \( -iname '*.key' -o -iname 'OPENROUT.KEY' -o \
+    -iname 'HARNESS98.INSTRUCTIONS.TXT' \) \
     -print -quit | grep -q .; then
-    echo "Credential file found in release package; refusing to continue." >&2
+    echo "Private local file found in release package; refusing to continue." >&2
     exit 1
 fi
 

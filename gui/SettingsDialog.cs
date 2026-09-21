@@ -14,6 +14,7 @@ namespace Harness98.Gui
         private readonly TextBox serverBox;
         private readonly CheckBox autoTitle;
         private readonly TextBox titleModelBox;
+        private readonly TextBox instructionsBox;
         private readonly CheckBox costWarning;
         private readonly Label costAmountLabel;
         private readonly TextBox costAmountBox;
@@ -119,6 +120,26 @@ namespace Harness98.Gui
                 14, 88);
             costs.Controls.Add(costNote);
 
+            TabPage instructions = new TabPage("Instructions");
+            tabs.TabPages.Add(instructions);
+
+            Label instructionsNote = MakeLabel(
+                "Included in every conversation-model request. This increases " +
+                "input tokens and cost.", 12, 14);
+            instructionsNote.Size = new Size(492, 32);
+            instructions.Controls.Add(instructionsNote);
+
+            instructionsBox = new TextBox();
+            instructionsBox.Location = new Point(12, 48);
+            instructionsBox.Size = new Size(492, 202);
+            instructionsBox.Multiline = true;
+            instructionsBox.AcceptsReturn = true;
+            instructionsBox.AcceptsTab = true;
+            instructionsBox.ScrollBars = ScrollBars.Both;
+            instructionsBox.WordWrap = true;
+            instructionsBox.Text = core.ExtraInstructions.Load();
+            instructions.Controls.Add(instructionsBox);
+
             titleModel = core.FindModel(core.Configuration.TitleModelId);
             UpdateTitleModelText();
             AutoTitleChanged(null, EventArgs.Empty);
@@ -203,6 +224,7 @@ namespace Harness98.Gui
                 core.Configuration.CostWarningEnabled = costWarning.Checked;
                 core.Configuration.CostWarningAmount = costAmount;
                 core.Configuration.Save();
+                core.ExtraInstructions.Save(instructionsBox.Text);
                 DialogResult = DialogResult.OK;
                 Close();
             }

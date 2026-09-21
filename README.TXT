@@ -38,7 +38,16 @@ GUI NOTES
 - The hard command timeout is 30 seconds.
 - View > Cost Toolbar shows session cost plus the last request's input tokens,
   output tokens, and cost.
-- Tools > Settings controls the key, update path, titles, and cost warning.
+- Tools > Settings controls the key, update path, titles, cost warning, and
+  extra instructions included with every conversation-model request.
+
+EXTRA INSTRUCTIONS
+------------------
+
+The Instructions tab stores optional machine details and preferences in
+HARNESS98.INSTRUCTIONS.TXT beside the program.  The file is private local data,
+is preserved during updates, and is not sent to automatic title requests.
+Because it is included in normal system prompts, it increases input tokens.
 
 AGENT TOOLS
 -----------

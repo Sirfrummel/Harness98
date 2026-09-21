@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Globalization;
+using System.Text;
 
 namespace Harness98
 {
@@ -11,9 +12,17 @@ namespace Harness98
         private readonly string applicationDirectory;
         private readonly ToolRegistry tools;
         private readonly IAgentProgressSink progress;
+        private readonly string extraInstructions;
 
         public AgentRunner(OpenRouterClient openRouter, string key,
             string workingDirectory, IAgentProgressSink progressSink)
+            : this(openRouter, key, workingDirectory, progressSink, "")
+        {
+        }
+
+        public AgentRunner(OpenRouterClient openRouter, string key,
+            string workingDirectory, IAgentProgressSink progressSink,
+            string additionalInstructions)
         {
             client = openRouter;
             apiKey = key;
@@ -21,6 +30,8 @@ namespace Harness98
             tools = new ToolRegistry(workingDirectory,
                 progressSink as ICommandRunControl);
             progress = progressSink;
+            extraInstructions = additionalInstructions == null ? "" :
+                additionalInstructions.Trim();
         }
 
         public ChatResult Run(ModelInfo model, Conversation conversation)
@@ -186,9 +197,10 @@ namespace Harness98
             bool toolsEnabled)
         {
             ArrayList messages = new ArrayList();
+            StringBuilder systemPrompt = new StringBuilder();
             if (toolsEnabled)
             {
-                messages.Add(new ChatMessage("system",
+                systemPrompt.Append(
                     "You are running in Harness98 on a Windows 98-era computer. " +
                     "Use read_file, write_file, and edit_file for text files, and " +
                     "run_command to run programs or native commands. Commands use " +
@@ -200,8 +212,22 @@ namespace Harness98
                     "working directory is " + applicationDirectory + ". For " +
                     "temporary scripts or scratch files, prefer " +
                     tools.TemporaryDirectory + ". Inspect results before deciding " +
-                    "the next step."));
+                    "the next step.");
             }
+            if (extraInstructions.Length > 0)
+            {
+                if (systemPrompt.Length > 0) systemPrompt.Append("\n\n");
+                systemPrompt.Append("Additional instructions configured by the " +
+                    "user for this Harness98 installation follow. Apply them to " +
+                    "this conversation.");
+                if (toolsEnabled)
+                    systemPrompt.Append(" They supplement the built-in tool and " +
+                        "platform rules above.");
+                systemPrompt.Append("\n\n");
+                systemPrompt.Append(extraInstructions);
+            }
+            if (systemPrompt.Length > 0)
+                messages.Add(new ChatMessage("system", systemPrompt.ToString()));
             for (int i = 0; i < conversation.Messages.Count; i++)
                 messages.Add(conversation.Messages[i]);
             return messages;

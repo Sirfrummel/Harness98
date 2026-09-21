@@ -90,7 +90,9 @@ namespace Harness98
             }
             string upper = file.Name.ToUpper();
             if (upper == "HARNESS98.KEY" || upper == "OPENROUT.KEY" ||
-                upper == "HARNESS98.CFG" || upper == "MANIFEST.INI" ||
+                upper == "HARNESS98.CFG" ||
+                upper == "HARNESS98.INSTRUCTIONS.TXT" ||
+                upper == "MANIFEST.INI" ||
                 upper == "READY.TAG" || upper == "HARNESS98-UPDATER.EXE")
             {
                 throw new FormatException("Protected file cannot be updated: " +

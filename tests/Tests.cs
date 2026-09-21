@@ -10,6 +10,7 @@ public sealed class Tests
     public static int Main(string[] args)
     {
         Run("JSON strings", TestJsonStrings);
+        Run("Extra instructions storage and prompt", TestExtraInstructions);
         Run("Model parsing and provider ordering", TestModels);
         Run("Chat history serialization", TestChat);
         Run("Tool calling protocol", TestToolProtocol);
@@ -27,6 +28,7 @@ public sealed class Tests
         Run("API error message", TestApiError);
         Run("Saved conversations", TestSavedConversations);
         Run("Update staging", TestUpdateStaging);
+        Run("Instructions protected from updates", TestInstructionsProtected);
         Run("Update application and backup", TestUpdateApplication);
 
         Console.WriteLine();
@@ -264,6 +266,52 @@ public sealed class Tests
         ChatResult result = runner.Run(model, conversation);
         AssertEqual("0.000004", result.Cost.ToString("0.000000",
             System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    private static void TestExtraInstructions()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "h98-instructions-" +
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            ExtraInstructionsStore store = new ExtraInstructionsStore(root);
+            AssertEqual("", store.Load());
+            string configured = "This PC has a Sound Blaster.\r\n" +
+                "Prefer short answers with Unicode support: \u2603";
+            store.Save(configured);
+            AssertEqual(configured, store.Load());
+
+            FakeTransport transport = new FakeTransport();
+            transport.PostResponse = Ok("{\"choices\":[{\"message\":{" +
+                "\"role\":\"assistant\",\"content\":\"Understood.\"}}]}");
+            ModelInfo model = new ModelInfo();
+            model.Id = "test/instructions";
+            model.Name = "Instructions";
+            model.SupportsTools = false;
+            Conversation conversation = new Conversation();
+            conversation.Add("user", "Hello");
+            AgentRunner runner = new AgentRunner(new OpenRouterClient(transport),
+                "key", root, null, store.Load());
+            runner.Run(model, conversation);
+
+            Hashtable request = Json.AsObject(Json.Parse(transport.LastPostBody));
+            ArrayList messages = Json.AsArray(request["messages"]);
+            Hashtable system = Json.AsObject(messages[0]);
+            AssertEqual("system", Json.GetString(system, "role"));
+            string content = Json.GetString(system, "content");
+            if (content.IndexOf(configured) < 0)
+                throw new Exception("Extra instructions were not in the prompt.");
+
+            store.Save("  \r\n");
+            AssertEqual("", store.Load());
+            if (File.Exists(Path.Combine(root, ExtraInstructionsStore.FileName)))
+                throw new Exception("Blank instructions file was not removed.");
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
     }
 
     private static void TestCommandCancellation()
@@ -607,6 +655,31 @@ public sealed class Tests
         finally
         {
             if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
+    private static void TestInstructionsProtected()
+    {
+        string path = Path.Combine(Path.GetTempPath(), "h98-manifest-" +
+            Guid.NewGuid().ToString("N") + ".ini");
+        try
+        {
+            File.WriteAllText(path, "VERSION=" + NextPatchVersion() +
+                "\r\nFILE=HARNESS98.INSTRUCTIONS.TXT|" +
+                new string('0', 64) + "\r\n", System.Text.Encoding.ASCII);
+            try
+            {
+                UpdateManifest.Load(path);
+                throw new Exception(
+                    "An update was allowed to replace extra instructions.");
+            }
+            catch (FormatException)
+            {
+            }
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
         }
     }
 

@@ -120,6 +120,11 @@ checks, and an optional session-cost toolbar. Press **Enter** to send and
 **Shift+Enter** to insert a new line. While a response is active, additional
 messages can be queued and are sent in order after the current turn finishes.
 
+The **Instructions** tab in Settings provides a multiline area for persistent
+machine details, preferred workflows, installed libraries, or other guidance.
+Harness98 includes this text in the system prompt for every normal conversation
+and agent request. It is not sent to the optional automatic-title request.
+
 While an agent response is active, **Stop** appears below the Send/Queue button.
 Stopping cancels a running command, prevents queued tool calls and queued user
 messages from starting, returns explicit interruption results to the model, and
@@ -178,13 +183,16 @@ Runtime data stays beside the application unless noted otherwise:
 | Path | Purpose |
 | --- | --- |
 | `HARNESS98.KEY` | Plain-text OpenRouter API key |
-| `HARNESS98.CFG` | Update server, automatic-title, tool-limit, and cost-warning settings |
+| `HARNESS98.CFG` | Update server, automatic-title, and cost-warning settings |
+| `HARNESS98.INSTRUCTIONS.TXT` | Optional extra system-prompt instructions configured in Settings |
 | `CONVERSATIONS\` | Saved conversation JSON files |
 | `UPDATE-STAGE\` | Downloaded update waiting for restart |
 | `%TEMP%\HARNESS98\` | Suggested scratch directory for agent-created temporary files |
 
-Empty conversations are not saved. The updater protects credentials,
-configuration, and conversation data from replacement.
+Empty conversations are not saved. Extra instructions are stored locally as
+UTF-8 text and increase the input-token count of each conversation-model
+request. The updater protects credentials, configuration, instructions, and
+conversation data from replacement.
 
 The repository's default `UPDATE_SERVER` points to the private development LAN
 share and will not work elsewhere. Set your own path in the GUI settings or in

@@ -15,9 +15,10 @@ The compiler defaults to
 prefix. Set `WINE_CSC` when it is installed elsewhere.
 
 The version comes from `src/VersionInfo.cs`. The release script never packages
-or publishes `HARNESS98.KEY`, `HARNESS98.CFG` from an installed machine,
-conversation data, staged updates, or backups. The repository's default
-`HARNESS98.CFG` template is included only in the fresh-install package and is
+or publishes `HARNESS98.KEY`, `HARNESS98.INSTRUCTIONS.TXT`, or
+`HARNESS98.CFG` from an installed machine, conversation data, staged updates,
+or backups. The repository's default `HARNESS98.CFG` template is included only
+in the fresh-install package. Configuration and extra instructions are
 protected from updater manifests.
 
 The normal local command does not touch the network:
